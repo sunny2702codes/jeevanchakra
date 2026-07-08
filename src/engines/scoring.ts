@@ -1,5 +1,15 @@
 import { REMEDIES } from '../data/remedies.js';
+import { CONSTITUTIONAL } from '../data/constitutional.js';
 import type { ClinicalSession, ScoringResult, ScoreTier, Remedy } from '../types';
+
+interface ConstitutionalProfile {
+  build?: string;
+  perspiration?: string;
+  sleep_pos?: string;
+  appetite?: string;
+  skin?: string[];
+  grief?: string;
+}
 
 const WEIGHTS = {
   causation:   6,
@@ -201,6 +211,76 @@ function scoreRemedy(remedy: Remedy, session: ClinicalSession): { result: Scorin
       matched.push({ field: 'Aversion', value: fa, weight: WEIGHTS.general, kent_grade: 2, points: pts });
     }
   });
+
+  // DESIRES COMPANY (Q15: wants_consolation / wants_to_be_alone)
+  // Separate from consolation_response: scores company preference vs remedy.mentals.desires_company
+  if (session.mental_state?.includes('wants_consolation')) {
+    maxPossible += WEIGHTS.mental * 2;
+    if ((rm as { desires_company?: boolean }).desires_company === true) {
+      const pts = WEIGHTS.mental * 2;
+      raw += pts;
+      matched.push({ field: 'Mental (prefers company)', value: 'wants_consolation', weight: WEIGHTS.mental, kent_grade: 2, points: pts });
+    }
+  } else if (session.mental_state?.includes('wants_to_be_alone')) {
+    maxPossible += WEIGHTS.mental * 2;
+    if ((rm as { desires_company?: boolean }).desires_company === false) {
+      const pts = WEIGHTS.mental * 2;
+      raw += pts;
+      matched.push({ field: 'Mental (prefers solitude)', value: 'wants_to_be_alone', weight: WEIGHTS.mental, kent_grade: 2, points: pts });
+    }
+  }
+
+  // CONSTITUTION TYPE MATCH (Q24 — if user identified the constitutional type)
+  if (session.constitution_hint) {
+    const remedyConst = (remedy as unknown as { constitution_type?: string }).constitution_type ?? '';
+    if (remedyConst) {
+      maxPossible += WEIGHTS.general * 3;
+      if (remedyConst === session.constitution_hint) {
+        const pts = WEIGHTS.general * 2;
+        raw += pts;
+        matched.push({ field: 'Constitutional type', value: session.constitution_hint, weight: WEIGHTS.general, kent_grade: 2, points: pts });
+      }
+    }
+  }
+
+  // CONSTITUTIONAL PARTICULARS (Q17-Q22: build, perspiration, sleep, appetite, skin, grief)
+  // Scored against CONSTITUTIONAL lookup table; only adds to maxPossible when the remedy has data.
+  {
+    const conData: ConstitutionalProfile = (CONSTITUTIONAL as Record<string, ConstitutionalProfile>)[remedy.id] ?? {};
+    const ba = session.branch_answers ?? {};
+    const CW = WEIGHTS.general; // weight 3
+
+    const pairs: Array<[string, string | undefined]> = [
+      [ba['build']?.[0] ?? '', conData.build],
+      [ba['perspiration']?.[0] ?? '', conData.perspiration],
+      [ba['sleep_position']?.[0] ?? '', conData.sleep_pos],
+      [ba['appetite']?.[0] ?? '', conData.appetite],
+      [ba['grief_response']?.[0] ?? '', conData.grief],
+    ];
+    for (const [userVal, remedyVal] of pairs) {
+      if (!remedyVal || !userVal) continue;
+      maxPossible += CW * 3;
+      if (userVal === remedyVal) {
+        const pts = CW * 2;
+        raw += pts;
+        matched.push({ field: 'Constitutional', value: userVal.replace(/_/g, ' '), weight: CW, kent_grade: 2, points: pts });
+      }
+    }
+
+    // Skin tendency is multi-select
+    const userSkins: string[] = ba['skin_tendency'] ?? [];
+    if (conData.skin && conData.skin.length > 0 && userSkins.length > 0) {
+      for (const us of userSkins) {
+        if (us === 'normal') continue;
+        maxPossible += CW * 3;
+        if (conData.skin.includes(us)) {
+          const pts = CW * 2;
+          raw += pts;
+          matched.push({ field: 'Skin tendency', value: us.replace(/_/g, ' '), weight: CW, kent_grade: 2, points: pts });
+        }
+      }
+    }
+  }
 
   // MIASM BONUS
   if (session.miasm_hint) {

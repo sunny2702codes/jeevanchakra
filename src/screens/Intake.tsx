@@ -27,15 +27,17 @@ interface IntakeProps {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getUniversalQuestions(branch: string | null): IntakeQuestion[] {
-  const raw = (INTAKE_POOLS as { universal: IntakeQuestion[] }).universal as IntakeQuestion[];
-  return raw.filter(q => {
+function getQuestionsForSession(branch: string | null): IntakeQuestion[] {
+  const pools = INTAKE_POOLS as { universal: IntakeQuestion[]; pools?: Record<string, IntakeQuestion[]> };
+  const universal = (pools.universal as IntakeQuestion[]).filter(q => {
     if (!q.condition) return true;
     if (q.condition.field === 'complaint' && q.condition.not_in && branch) {
       return !q.condition.not_in.includes(branch);
     }
     return true;
   });
+  const branchPool: IntakeQuestion[] = (branch && pools.pools?.[branch]) ? (pools.pools[branch] as IntakeQuestion[]) : [];
+  return [...universal, ...branchPool];
 }
 
 function applyAnswer(
@@ -52,8 +54,8 @@ function applyAnswer(
     if (field === 'consolation_response') return { ...session, consolation_response: val };
     if (field === 'laterality') return { ...session, laterality: val };
     if (field === 'duration') return { ...session, duration: val };
-    if (field === 'miasm_hint') return { ...session, miasm_hint: val as Miasm };
-    if (field === 'constitution_type') return { ...session, constitution_hint: val as ConstitutionType };
+    if (field === 'miasm_hint') return (!val || val === 'skip') ? session : { ...session, miasm_hint: val as Miasm };
+    if (field === 'constitution_type') return (!val || val === 'skip') ? session : { ...session, constitution_hint: val as ConstitutionType };
     // build, perspiration, sleep_position etc go to branch_answers
     return { ...session, branch_answers: { ...session.branch_answers, [question.id]: [val ?? ''] } };
   }
@@ -66,10 +68,8 @@ function applyAnswer(
   if (field === 'mental_state') return { ...session, mental_state: [...new Set([...(session.mental_state ?? []), ...values])] };
   if (field === 'food_desires') return { ...session, food_desires: values };
   if (field === 'food_aversions') return { ...session, food_aversions: values };
-  if (field === 'concomitants_general' || field === 'branch_answers') {
-    return { ...session, branch_answers: { ...session.branch_answers, [question.id]: values } };
-  }
-  return session;
+  // Default: any unrecognised multi field goes to branch_answers (covers skin_tendency, etc.)
+  return { ...session, branch_answers: { ...session.branch_answers, [question.id]: values } };
 }
 
 const STEPS = ['Safety', 'Complaint', 'Intake', 'Analysis', 'Results'];
@@ -80,7 +80,7 @@ export default function Intake({ navigate }: IntakeProps) {
   const { clinicalSession, setClinicalSession, setClinicalResults } = useApp();
 
   const questions = useMemo(
-    () => getUniversalQuestions(clinicalSession?.branch ?? null),
+    () => getQuestionsForSession(clinicalSession?.branch ?? null),
     [clinicalSession?.branch],
   );
 
