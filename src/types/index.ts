@@ -23,7 +23,7 @@ export interface JCSession {
 export type JCScreen =
   | 'splash' | 'login' | 'register' | 'otp'
   | 'home' | 'safety' | 'halt' | 'complaint' | 'intake' | 'results'
-  | 'cases' | 'library' | 'admin' | 'profile'
+  | 'cases' | 'library' | 'admin' | 'profile' | 'patients'
   | 'constitutional' | 'compare' | 'rubric-search' | 'privacy';
 
 // ── Remedy schema (matches hdss/data/remedies.js) ─────────────────
@@ -164,6 +164,18 @@ export interface RankedResults {
   all: ScoringResult[];
 }
 
+// ── Patient ───────────────────────────────────────────────────────
+export interface Patient {
+  id: string;
+  name: string;
+  age?: number;
+  gender: 'Male' | 'Female' | 'Other';
+  phone?: string;
+  notes?: string;
+  createdAt: string;
+  ownerPhone: string;
+}
+
 // ── Saved case ────────────────────────────────────────────────────
 export interface SavedCase {
   id: string;
@@ -173,6 +185,8 @@ export interface SavedCase {
   results: ScoringResult[];
   topRemedy?: string;
   notes?: string;
+  patientId?: string;
+  patientName?: string;
 }
 
 // ── Intake pool (matches hdss/data/intake.js) ─────────────────────

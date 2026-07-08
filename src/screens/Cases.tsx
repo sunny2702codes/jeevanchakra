@@ -44,6 +44,7 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'timeline'>('list');
 
   function toggleExpand(id: string) {
     setExpandedId(prev => (prev === id ? null : id));
@@ -108,154 +109,279 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
         </div>
       )}
 
-      {/* Cases list */}
+      {/* View toggle + cases */}
       {cases.length > 0 && (
-        <div className="space-y-3">
-          {cases.map(c => {
-            const topResult = c.results?.[0];
-            const topRemedy = c.topRemedy ?? topResult?.remedy_id ?? 'Unknown';
-            const topScore = topResult ? Math.round(topResult.normalised_score) : 0;
-            const isExpanded = expandedId === c.id;
-            const isConfirming = confirmDeleteId === c.id;
+        <>
+          {/* View toggle */}
+          <div className="flex gap-2 items-center">
+            <button
+              className={[
+                'text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer',
+                view === 'list'
+                  ? 'bg-jc-purple-700 text-white border-jc-purple-700'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-jc-purple-300',
+              ].join(' ')}
+              onClick={() => setView('list')}
+            >
+              List
+            </button>
+            <button
+              className={[
+                'text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer',
+                view === 'timeline'
+                  ? 'bg-jc-purple-700 text-white border-jc-purple-700'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-jc-purple-300',
+              ].join(' ')}
+              onClick={() => setView('timeline')}
+            >
+              Timeline
+            </button>
+          </div>
 
-            return (
-              <div key={c.id} className="jc-card p-0 overflow-hidden">
+          {/* List view */}
+          {view === 'list' && (
+            <div className="space-y-3">
+              {cases.map(c => {
+                const topResult = c.results?.[0];
+                const topRemedy = c.topRemedy ?? topResult?.remedy_id ?? 'Unknown';
+                const topScore = topResult ? Math.round(topResult.normalised_score) : 0;
+                const isExpanded = expandedId === c.id;
+                const isConfirming = confirmDeleteId === c.id;
 
-                {/* Card header */}
-                <div className="flex items-center gap-3 p-4">
-                  <FileText className="text-jc-purple-400 shrink-0" size={18} />
+                return (
+                  <div key={c.id} className="jc-card p-0 overflow-hidden">
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-slate-400">{formatDate(c.date)}</span>
-                      {c.complaint && (
-                        <span className="bg-jc-purple-100 text-jc-purple-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                          {humanize(c.complaint)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 mt-0.5 truncate">
-                      {topRemedy}
-                      {topScore > 0 && (
-                        <span className="ml-2 text-xs font-normal text-slate-400">{topScore}%</span>
-                      )}
-                    </p>
-                  </div>
+                    {/* Card header */}
+                    <div className="flex items-center gap-3 p-4">
+                      <FileText className="text-jc-purple-400 shrink-0" size={18} />
 
-                  <button
-                    className="jc-btn-ghost p-1.5"
-                    onClick={() => toggleExpand(c.id)}
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                  >
-                    {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </div>
-
-                {/* Expanded panel */}
-                {isExpanded && (
-                  <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-4">
-
-                    {/* Session details grid */}
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                      {c.session.thermal_state && (
-                        <div>
-                          <span className="text-slate-400 text-xs uppercase tracking-wide">Thermal</span>
-                          <p className="text-slate-700 capitalize mt-0.5">{c.session.thermal_state}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-slate-400">{formatDate(c.date)}</span>
+                          {c.complaint && (
+                            <span className="bg-jc-purple-100 text-jc-purple-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                              {humanize(c.complaint)}
+                            </span>
+                          )}
                         </div>
-                      )}
-                      {c.session.causation && c.session.causation.length > 0 && (
-                        <div>
-                          <span className="text-slate-400 text-xs uppercase tracking-wide">Causation</span>
-                          <p className="text-slate-700 mt-0.5">{c.session.causation.map(humanize).join(', ')}</p>
-                        </div>
-                      )}
-                      {c.session.worse_from && c.session.worse_from.length > 0 && (
-                        <div>
-                          <span className="text-slate-400 text-xs uppercase tracking-wide">Worse from</span>
-                          <p className="text-slate-700 mt-0.5">{c.session.worse_from.map(humanize).join(', ')}</p>
-                        </div>
-                      )}
-                      {c.session.better_from && c.session.better_from.length > 0 && (
-                        <div>
-                          <span className="text-slate-400 text-xs uppercase tracking-wide">Better from</span>
-                          <p className="text-slate-700 mt-0.5">{c.session.better_from.map(humanize).join(', ')}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Top 5 results */}
-                    {c.results && c.results.length > 0 && (
-                      <div>
-                        <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Top Remedies</p>
-                        <ol className="space-y-1.5">
-                          {c.results.slice(0, 5).map((r, i) => (
-                            <li key={r.remedy_id} className="flex items-center justify-between text-sm">
-                              <span className="text-slate-700">
-                                <span className="text-slate-400 mr-1.5">{i + 1}.</span>
-                                {r.latin_name ?? r.remedy_id}
-                              </span>
-                              <span
-                                className={
-                                  r.tier === 'Strong'
-                                    ? 'jc-badge-strong'
-                                    : r.tier === 'Probable'
-                                    ? 'jc-badge-probable'
-                                    : 'jc-badge-possible'
-                                }
-                              >
-                                {Math.round(r.normalised_score)}% {r.tier}
-                              </span>
-                            </li>
-                          ))}
-                        </ol>
+                        <p className="text-sm font-semibold text-slate-800 mt-0.5 truncate">
+                          {topRemedy}
+                          {topScore > 0 && (
+                            <span className="ml-2 text-xs font-normal text-slate-400">{topScore}%</span>
+                          )}
+                        </p>
+                        {c.patientName && (
+                          <p className="text-xs text-jc-purple-500 mt-0.5">{c.patientName}</p>
+                        )}
                       </div>
-                    )}
 
-                    {/* Follow-up CTA */}
-                    <div className="pt-1">
                       <button
-                        className="jc-btn-secondary text-sm flex items-center gap-2"
-                        onClick={() => handleFollowUp(c)}
+                        className="jc-btn-ghost p-1.5"
+                        onClick={() => toggleExpand(c.id)}
+                        aria-label={isExpanded ? 'Collapse' : 'Expand'}
                       >
-                        <RefreshCw size={14} />
-                        Start Follow-up Assessment
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
                     </div>
 
-                    {/* Delete row */}
-                    <div className="pt-1 flex justify-end border-t border-slate-50">
-                      {isConfirming ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500">Delete this case?</span>
+                    {/* Expanded panel */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-4">
+
+                        {/* Session details grid */}
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                          {c.session.thermal_state && (
+                            <div>
+                              <span className="text-slate-400 text-xs uppercase tracking-wide">Thermal</span>
+                              <p className="text-slate-700 capitalize mt-0.5">{c.session.thermal_state}</p>
+                            </div>
+                          )}
+                          {c.session.causation && c.session.causation.length > 0 && (
+                            <div>
+                              <span className="text-slate-400 text-xs uppercase tracking-wide">Causation</span>
+                              <p className="text-slate-700 mt-0.5">{c.session.causation.map(humanize).join(', ')}</p>
+                            </div>
+                          )}
+                          {c.session.worse_from && c.session.worse_from.length > 0 && (
+                            <div>
+                              <span className="text-slate-400 text-xs uppercase tracking-wide">Worse from</span>
+                              <p className="text-slate-700 mt-0.5">{c.session.worse_from.map(humanize).join(', ')}</p>
+                            </div>
+                          )}
+                          {c.session.better_from && c.session.better_from.length > 0 && (
+                            <div>
+                              <span className="text-slate-400 text-xs uppercase tracking-wide">Better from</span>
+                              <p className="text-slate-700 mt-0.5">{c.session.better_from.map(humanize).join(', ')}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Top 5 results */}
+                        {c.results && c.results.length > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Top Remedies</p>
+                            <ol className="space-y-1.5">
+                              {c.results.slice(0, 5).map((r, i) => (
+                                <li key={r.remedy_id} className="flex items-center justify-between text-sm">
+                                  <span className="text-slate-700">
+                                    <span className="text-slate-400 mr-1.5">{i + 1}.</span>
+                                    {r.latin_name ?? r.remedy_id}
+                                  </span>
+                                  <span
+                                    className={
+                                      r.tier === 'Strong'
+                                        ? 'jc-badge-strong'
+                                        : r.tier === 'Probable'
+                                        ? 'jc-badge-probable'
+                                        : 'jc-badge-possible'
+                                    }
+                                  >
+                                    {Math.round(r.normalised_score)}% {r.tier}
+                                  </span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+
+                        {/* Follow-up CTA */}
+                        <div className="pt-1">
                           <button
-                            className="text-xs font-semibold text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors cursor-pointer"
-                            onClick={handleDeleteConfirm}
+                            className="jc-btn-secondary text-sm flex items-center gap-2"
+                            onClick={() => handleFollowUp(c)}
                           >
-                            Yes, delete
-                          </button>
-                          <button
-                            className="jc-btn-ghost text-xs px-2 py-1"
-                            onClick={handleDeleteCancel}
-                          >
-                            Cancel
+                            <RefreshCw size={14} />
+                            Start Follow-up Assessment
                           </button>
                         </div>
-                      ) : (
-                        <button
-                          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-500 transition-colors cursor-pointer px-2 py-1 rounded hover:bg-red-50"
-                          onClick={() => handleDeleteRequest(c.id)}
-                        >
-                          <Trash2 size={13} />
-                          Delete
-                        </button>
+
+                        {/* Delete row */}
+                        <div className="pt-1 flex justify-end border-t border-slate-50">
+                          {isConfirming ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500">Delete this case?</span>
+                              <button
+                                className="text-xs font-semibold text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors cursor-pointer"
+                                onClick={handleDeleteConfirm}
+                              >
+                                Yes, delete
+                              </button>
+                              <button
+                                className="jc-btn-ghost text-xs px-2 py-1"
+                                onClick={handleDeleteCancel}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-500 transition-colors cursor-pointer px-2 py-1 rounded hover:bg-red-50"
+                              onClick={() => handleDeleteRequest(c.id)}
+                            >
+                              <Trash2 size={13} />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Timeline view */}
+          {view === 'timeline' && (
+            <div className="space-y-0 relative pl-2">
+              {/* Vertical connector line */}
+              <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-jc-purple-100" />
+              {[...cases].reverse().map((c, idx) => {
+                const topResult = c.results?.[0];
+                const topRemedy = topResult?.latin_name ?? c.topRemedy ?? topResult?.remedy_id ?? 'Unknown';
+                const topScore = topResult ? Math.round(topResult.normalised_score) : 0;
+                const tier = topResult?.tier ?? 'Possible';
+                const tierColor =
+                  tier === 'Strong'
+                    ? 'bg-emerald-500'
+                    : tier === 'Probable'
+                    ? 'bg-blue-400'
+                    : 'bg-amber-400';
+
+                return (
+                  <div key={c.id} className="flex gap-4 pb-6 relative">
+                    {/* Dot */}
+                    <div
+                      className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center shrink-0 z-10 text-white text-xs font-bold ${tierColor}`}
+                    >
+                      {idx + 1}
+                    </div>
+                    {/* Content card */}
+                    <div className="flex-1 jc-card p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-slate-800 text-sm">{topRemedy}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{formatDate(c.date)}</p>
+                          {c.patientName && (
+                            <p className="text-xs text-jc-purple-500 mt-0.5">{c.patientName}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {topScore > 0 && (
+                            <span
+                              className={
+                                tier === 'Strong'
+                                  ? 'jc-badge-strong'
+                                  : tier === 'Probable'
+                                  ? 'jc-badge-probable'
+                                  : 'jc-badge-possible'
+                              }
+                            >
+                              {topScore}%
+                            </span>
+                          )}
+                          {c.complaint && (
+                            <span className="text-xs bg-jc-purple-50 text-jc-purple-600 px-2 py-0.5 rounded-full">
+                              {humanize(c.complaint)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Score bar */}
+                      {topScore > 0 && (
+                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${tierColor} transition-all duration-500`}
+                            style={{ width: `${topScore}%` }}
+                          />
+                        </div>
                       )}
+                      {/* Top 3 remedies mini list */}
+                      {c.results && c.results.length > 1 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {c.results.slice(0, 3).map((r, i) => (
+                            <span
+                              key={r.remedy_id}
+                              className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5"
+                            >
+                              {i + 1}. {r.latin_name ?? r.remedy_id} ({Math.round(r.normalised_score)}%)
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <button
+                        className="jc-btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                        onClick={() => handleFollowUp(c)}
+                      >
+                        <RefreshCw size={12} /> Follow-up
+                      </button>
                     </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Bottom CTA */}

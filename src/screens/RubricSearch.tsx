@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Search, BookOpen, ChevronRight } from 'lucide-react';
+import { Search, BookOpen, ChevronRight, Loader2 } from 'lucide-react';
 import { getRubricsForRemedy } from '../engines/rubric_search';
 import { searchRemedies } from '../engines/remedy_compare';
+import { initSemantic, semanticSearch, getSemanticStatus } from '../engines/rubricSemantic';
 // @ts-ignore
 import { REMEDIES as _R } from '../data/remedies.js';
 import Modal from '../components/Modal';
@@ -108,7 +109,35 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
   const [remedyQuery, setRemedyQuery]     = useState('');
   const [selectedRemedy, setSelectedRemedy] = useState<Remedy | null>(null);
   const [modalRemedy, setModalRemedy]     = useState<Remedy | null>(null);
-  const [tab, setTab] = useState<'symptom' | 'remedy'>('symptom');
+  const [tab, setTab] = useState<'symptom' | 'remedy' | 'semantic'>('symptom');
+
+  // Semantic search state
+  const [semQuery, setSemQuery] = useState('');
+  const [semResults, setSemResults] = useState<Array<{ id: string; text: string; cat: string; score: number }>>([]);
+  const [semLoading, setSemLoading] = useState(false);
+  const [semError, setSemError] = useState<string | null>(null);
+  const [semInitStatus, setSemInitStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+
+  async function handleSemanticSearch() {
+    if (!semQuery.trim() || semQuery.trim().length < 3) return;
+    setSemLoading(true);
+    setSemError(null);
+    try {
+      if (getSemanticStatus() !== 'ready') {
+        setSemInitStatus('loading');
+        await initSemantic();
+        setSemInitStatus('ready');
+      }
+      const results = await semanticSearch(semQuery.trim(), 12);
+      setSemResults(results);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Semantic search failed';
+      setSemError(msg);
+      setSemInitStatus('error');
+    } finally {
+      setSemLoading(false);
+    }
+  }
 
   const symptomResults = useMemo(() => searchBySymptom(symptomQuery), [symptomQuery]);
   const remedySearchResults = useMemo(
@@ -135,12 +164,13 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {[
-          { key: 'symptom', label: 'Search by Symptom' },
-          { key: 'remedy',  label: 'Lookup by Remedy' },
+          { key: 'symptom',  label: 'Search by Symptom' },
+          { key: 'remedy',   label: 'Lookup by Remedy' },
+          { key: 'semantic', label: 'Semantic Search' },
         ].map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as 'symptom' | 'remedy')}
+            onClick={() => setTab(t.key as 'symptom' | 'remedy' | 'semantic')}
             className={[
               'px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer',
               tab === t.key
@@ -285,6 +315,71 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
             <div className="jc-card text-center py-14 text-slate-400">
               <BookOpen size={40} className="mx-auto mb-3 opacity-30" />
               <p className="font-medium">Enter a remedy name to look up its rubrics</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Semantic search tab */}
+      {tab === 'semantic' && (
+        <div className="space-y-4">
+          {/* Info banner */}
+          <div className="bg-jc-purple-50 border border-jc-purple-200 rounded-xl p-4">
+            <p className="text-sm font-semibold text-jc-purple-800">Semantic Rubric Search</p>
+            <p className="text-xs text-jc-purple-700 mt-1 leading-relaxed">
+              Searches 63,220 Kent rubrics by meaning, not just keywords. First use downloads the AI model (~20MB). Describe the symptom in plain language.
+            </p>
+          </div>
+
+          {/* Search input */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                className="jc-input pl-9"
+                placeholder="e.g. burning stomach worse at night better cold drinks"
+                value={semQuery}
+                onChange={e => setSemQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSemanticSearch()}
+              />
+            </div>
+            <button
+              className="jc-btn-primary flex items-center gap-2 whitespace-nowrap"
+              onClick={handleSemanticSearch}
+              disabled={semLoading}
+            >
+              {semLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+              {semLoading ? (semInitStatus === 'loading' ? 'Loading model...' : 'Searching...') : 'Search'}
+            </button>
+          </div>
+
+          {semError && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              {semError}
+            </div>
+          )}
+
+          {semResults.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">{semResults.length} matching rubrics</p>
+              {semResults.map(r => (
+                <div key={r.id} className="jc-card p-3 space-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm text-slate-700 leading-snug capitalize">{r.text.replace(/_/g, ' ')}</p>
+                    <span className="text-xs font-bold text-jc-purple-600 shrink-0 bg-jc-purple-50 px-2 py-0.5 rounded-full">{r.score}%</span>
+                  </div>
+                  <p className="text-xs text-slate-400 capitalize">{r.cat}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!semResults.length && !semLoading && !semError && (
+            <div className="jc-card text-center py-14 text-slate-400">
+              <Search size={40} className="mx-auto mb-3 opacity-30" />
+              <p className="font-medium">Describe a symptom in plain language</p>
+              <p className="text-sm mt-1">Try: "burning pains better cold water", "worse from consolation", "craves salt"</p>
             </div>
           )}
         </div>

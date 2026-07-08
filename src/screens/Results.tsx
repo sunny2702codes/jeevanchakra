@@ -116,6 +116,27 @@ function chip(label: string, value: string) {
   );
 }
 
+const FIELD_DISPLAY: Record<string, { label: string; color: string }> = {
+  causation:           { label: 'Causation',         color: 'bg-jc-purple-600' },
+  keynote:             { label: 'Keynote',            color: 'bg-jc-purple-400' },
+  collected_keynote:   { label: 'Confirmed keynote',  color: 'bg-jc-purple-400' },
+  collected_keynotes:  { label: 'Confirmed keynote',  color: 'bg-jc-purple-400' },
+  modality_worse:      { label: 'Modality (worse)',   color: 'bg-blue-500' },
+  modality_better:     { label: 'Modality (better)',  color: 'bg-blue-400' },
+  worse_from:          { label: 'Modality (worse)',   color: 'bg-blue-500' },
+  better_from:         { label: 'Modality (better)',  color: 'bg-blue-400' },
+  time_modality:       { label: 'Time pattern',       color: 'bg-blue-300' },
+  mental:              { label: 'Mental',             color: 'bg-amber-500' },
+  mental_state:        { label: 'Mental',             color: 'bg-amber-500' },
+  general:             { label: 'General',            color: 'bg-amber-400' },
+  thermal:             { label: 'Thermal',            color: 'bg-amber-300' },
+  laterality:          { label: 'Laterality',         color: 'bg-slate-400' },
+};
+
+function getFieldDisplay(field: string): { label: string; color: string } {
+  return FIELD_DISPLAY[field] ?? { label: field, color: 'bg-slate-400' };
+}
+
 export default function Results({ navigate, session: authSession }: ResultsProps) {
   const { clinicalSession, setClinicalSession, clinicalResults, setClinicalResults } = useApp();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -517,6 +538,49 @@ export default function Results({ navigate, session: authSession }: ResultsProps
               {/* Expanded detail */}
               {isOpen && (
                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+                  {/* Score breakdown by category */}
+                  {(() => {
+                    const scored = r.matches.filter(m => m.points > 0);
+                    const total = scored.reduce((s, m) => s + m.points, 0);
+                    if (total === 0 || scored.length === 0) return null;
+
+                    const catMap = new Map<string, { pts: number; color: string }>();
+                    for (const m of scored) {
+                      const { label, color } = getFieldDisplay(m.field);
+                      const existing = catMap.get(label);
+                      if (existing) {
+                        existing.pts += m.points;
+                      } else {
+                        catMap.set(label, { pts: m.points, color });
+                      }
+                    }
+                    const sorted = Array.from(catMap.entries()).sort((a, b) => b[1].pts - a[1].pts);
+
+                    return (
+                      <div>
+                        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Score Breakdown</div>
+                        <div className="space-y-1.5">
+                          {sorted.map(([label, { pts, color }]) => {
+                            const pct = Math.round((pts / total) * 100);
+                            return (
+                              <div key={label} className="flex items-center gap-2">
+                                <div className="w-28 text-xs text-slate-500 shrink-0 truncate">{label}</div>
+                                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${color}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <div className="text-xs text-slate-400 tabular-nums w-10 text-right shrink-0">
+                                  {pts.toFixed(1)}p
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div>
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">All matched indicators</div>
                     <div className="grid grid-cols-1 gap-1.5">

@@ -22,6 +22,7 @@ const ConstitutionalScreen = lazy(() => import('./screens/ConstitutionalType'));
 const RubricSearchScreen   = lazy(() => import('./screens/RubricSearch'));
 const PrivacyPolicyScreen  = lazy(() => import('./screens/PrivacyPolicy'));
 const ProfileScreen        = lazy(() => import('./screens/Profile'));
+const PatientsScreen       = lazy(() => import('./screens/Patients'));
 
 function HaltScreen({ navigate }: { navigate: (s: string) => void }) {
   return (
@@ -58,6 +59,8 @@ interface AppContextValue {
   clinicalResults: ScoringResult[] | null;
   setClinicalResults: (r: ScoringResult[] | null) => void;
   session: JCSession | null;
+  currentPatientId: string | null;
+  setCurrentPatientId: (id: string | null) => void;
 }
 
 export const AppContext = createContext<AppContextValue>({
@@ -67,6 +70,8 @@ export const AppContext = createContext<AppContextValue>({
   clinicalResults: null,
   setClinicalResults: () => {},
   session: null,
+  currentPatientId: null,
+  setCurrentPatientId: () => {},
 });
 
 export function useApp() {
@@ -93,6 +98,7 @@ export default function App() {
   const [session, setSession] = useState<JCSession | null>(null);
   const [clinicalSession, setClinicalSession] = useState<ClinicalSession | null>(null);
   const [clinicalResults, setClinicalResults] = useState<ScoringResult[] | null>(null);
+  const [currentPatientId, setCurrentPatientId] = useState<string | null>(null);
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
@@ -139,6 +145,7 @@ export default function App() {
       case 'rubric-search':  return <RubricSearchScreen navigate={navigate} />;
       case 'privacy':        return <PrivacyPolicyScreen navigate={navigate} />;
       case 'profile':        return <ProfileScreen session={session} navigate={navigate} onLogout={handleLogout} />;
+      case 'patients':       return <PatientsScreen session={session} navigate={navigate} />;
       default:               return <HomeScreen session={session} navigate={navigate} />;
     }
   }
@@ -152,6 +159,8 @@ export default function App() {
     clinicalResults,
     setClinicalResults,
     session,
+    currentPatientId,
+    setCurrentPatientId,
   };
 
   // ── Splash ──────────────────────────────────────────────────────────────────
