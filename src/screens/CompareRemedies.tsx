@@ -1,13 +1,17 @@
 import { useState, useMemo } from 'react';
-import { GitCompare, Search, X } from 'lucide-react';
+import { GitCompare, Search, X, Plus } from 'lucide-react';
 // @ts-ignore
 import { REMEDIES as _R } from '../data/remedies.js';
-import { compare, searchRemedies } from '../engines/remedy_compare';
+import { searchRemedies } from '../engines/remedy_compare';
+import { humanize } from '../utils/humanize';
 import type { Remedy } from '../types';
 
 const ALL = _R as Remedy[];
+const MAX_SLOTS = 5;
 
 interface CompareProps { navigate: (s: string) => void; }
+
+// ── Remedy Picker ─────────────────────────────────────────────────────────────
 
 function RemedyPicker({
   label, value, onSelect, onClear,
@@ -31,7 +35,7 @@ function RemedyPicker({
           </div>
           <button
             onClick={onClear}
-            className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer shrink-0"
             aria-label="Remove remedy"
           >
             <X size={16} />
@@ -87,42 +91,92 @@ function RemedyPicker({
   );
 }
 
-function FieldRow({ field, values1, values2 }: { field: string; values1: string[]; values2: string[] }) {
-  const set1 = new Set(values1);
-  const set2 = new Set(values2);
-  const shared = values1.filter(v => set2.has(v));
-  const only1  = values1.filter(v => !set2.has(v));
-  const only2  = values2.filter(v => !set1.has(v));
-  if (!shared.length && !only1.length && !only2.length) return null;
+// ── Field Row: N columns ──────────────────────────────────────────────────────
+
+function FieldRow({ field, columns }: { field: string; columns: string[][] }) {
+  // Flatten all values to determine sharing
+  const countMap = new Map<string, number>();
+  for (const col of columns) {
+    for (const v of col) {
+      countMap.set(v, (countMap.get(v) ?? 0) + 1);
+    }
+  }
+  const totalCols = columns.length;
+  const hasAny = columns.some(c => c.length > 0);
+  if (!hasAny) return null;
+
   return (
-    <div className="grid grid-cols-3 gap-4 py-3 border-b border-slate-50 last:border-0">
+    <div
+      className="py-3 border-b border-slate-50 last:border-0"
+      style={{ display: 'grid', gridTemplateColumns: `120px repeat(${totalCols}, 1fr)`, gap: '1rem' }}
+    >
       <div className="text-xs font-bold text-slate-400 uppercase tracking-wide self-start pt-0.5">{field}</div>
-      <div className="text-xs text-slate-700 space-y-1">
-        {only1.map(v => <span key={v} className="block text-jc-purple-700 font-medium">{v}</span>)}
-        {shared.map(v => <span key={v} className="block text-emerald-700">{v}</span>)}
-      </div>
-      <div className="text-xs text-slate-700 space-y-1">
-        {only2.map(v => <span key={v} className="block text-jc-purple-700 font-medium">{v}</span>)}
-        {shared.map(v => <span key={v} className="block text-emerald-700">{v}</span>)}
-      </div>
+      {columns.map((col, ci) => (
+        <div key={ci} className="text-xs text-slate-700 space-y-1">
+          {col.map(v => {
+            const count = countMap.get(v) ?? 1;
+            const isShared = count >= 2;
+            return (
+              <span
+                key={v}
+                className={[
+                  'block font-medium',
+                  isShared ? 'text-emerald-700' : 'text-jc-purple-700',
+                ].join(' ')}
+              >
+                {humanize(v)}
+              </span>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
 
+// ── Main Screen ───────────────────────────────────────────────────────────────
+
 export default function CompareRemedies({ navigate: _nav }: CompareProps) {
-  const [r1, setR1] = useState<Remedy | null>(null);
-  const [r2, setR2] = useState<Remedy | null>(null);
+  const [remedies, setRemedies] = useState<(Remedy | null)[]>([null, null]);
 
-  const result = useMemo(() => {
-    if (!r1 || !r2) return null;
-    return compare(r1.id, r2.id);
-  }, [r1, r2]);
+  const filledRemedies = remedies.filter(Boolean) as Remedy[];
+  const canCompare = filledRemedies.length >= 2;
+  const canAddSlot = remedies.length < MAX_SLOTS;
 
-  const canCompare = r1 && r2;
+  function updateSlot(idx: number, remedy: Remedy | null) {
+    setRemedies(prev => {
+      const next = [...prev];
+      next[idx] = remedy;
+      return next;
+    });
+  }
+
+  function addSlot() {
+    if (canAddSlot) setRemedies(prev => [...prev, null]);
+  }
+
+  function removeSlot(idx: number) {
+    setRemedies(prev => {
+      if (prev.length <= 2) {
+        const next = [...prev];
+        next[idx] = null;
+        return next;
+      }
+      return prev.filter((_, i) => i !== idx);
+    });
+  }
+
+  // Build comparison columns from filled remedies
+  const columns = useMemo(() => {
+    if (!canCompare) return null;
+    return filledRemedies;
+  }, [filledRemedies, canCompare]);
+
   const totalRemedies = ALL.length;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {/* Banner */}
       <div className="jc-section-banner flex items-start gap-4">
         <div className="p-3 bg-white/20 rounded-xl">
           <GitCompare size={24} className="text-white" />
@@ -131,67 +185,124 @@ export default function CompareRemedies({ navigate: _nav }: CompareProps) {
           <div className="text-xs font-bold text-jc-gold-300 uppercase tracking-widest mb-1">Reference Tool</div>
           <h1 className="text-xl font-bold text-white">Compare Remedies</h1>
           <p className="text-white/70 text-sm mt-1">
-            Side-by-side comparison of {totalRemedies} Boericke remedies
+            Side-by-side comparison of {totalRemedies} Boericke remedies (up to {MAX_SLOTS} at once)
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <RemedyPicker label="Remedy A" value={r1} onSelect={setR1} onClear={() => setR1(null)} />
-        <RemedyPicker label="Remedy B" value={r2} onSelect={setR2} onClear={() => setR2(null)} />
+      {/* Pickers */}
+      <div className={`grid gap-4`} style={{ gridTemplateColumns: `repeat(${remedies.length}, 1fr)` }}>
+        {remedies.map((r, i) => (
+          <div key={i} className="relative">
+            <RemedyPicker
+              label={`Remedy ${String.fromCharCode(65 + i)}`}
+              value={r}
+              onSelect={rem => updateSlot(i, rem)}
+              onClear={() => removeSlot(i)}
+            />
+          </div>
+        ))}
       </div>
+
+      {/* Add slot button */}
+      {canAddSlot && (
+        <div className="flex justify-start">
+          <button
+            onClick={addSlot}
+            className="flex items-center gap-2 text-sm text-jc-purple-600 font-semibold border border-jc-purple-200 px-4 py-2 rounded-xl hover:bg-jc-purple-50 transition-colors cursor-pointer"
+          >
+            <Plus size={15} />
+            Add another remedy
+          </button>
+        </div>
+      )}
 
       {!canCompare && (
         <div className="jc-card text-center py-12 text-slate-400">
           <GitCompare size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium">Select two remedies to compare</p>
+          <p className="font-medium">Select at least two remedies to compare</p>
           <p className="text-sm mt-1">Search by latin name, common name, or abbreviation</p>
         </div>
       )}
 
-      {result && (
-        <div className="jc-card space-y-0">
-          <div className="grid grid-cols-3 gap-4 pb-3 border-b border-slate-100 mb-1">
+      {columns && (
+        <div className="jc-card space-y-0 overflow-x-auto">
+          {/* Header */}
+          <div
+            className="pb-3 border-b border-slate-100 mb-1"
+            style={{ display: 'grid', gridTemplateColumns: `120px repeat(${columns.length}, 1fr)`, gap: '1rem' }}
+          >
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Attribute</div>
-            <div className="font-bold text-jc-purple-700 text-sm">{result.remedy1.abbreviation}</div>
-            <div className="font-bold text-jc-purple-700 text-sm">{result.remedy2.abbreviation}</div>
+            {columns.map(r => (
+              <div key={r.id} className="font-bold text-jc-purple-700 text-sm">
+                {r.abbreviation}
+                <div className="text-xs font-normal text-slate-400 truncate">{r.latin_name}</div>
+              </div>
+            ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-4 py-3 border-b border-slate-50">
+          {/* Thermal */}
+          <div
+            className="py-3 border-b border-slate-50"
+            style={{ display: 'grid', gridTemplateColumns: `120px repeat(${columns.length}, 1fr)`, gap: '1rem' }}
+          >
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wide self-center">Thermal</div>
-            <div className="text-xs text-slate-700 capitalize">{result.remedy1.thermal_state ?? 'Not specified'}</div>
-            <div className="text-xs text-slate-700 capitalize">{result.remedy2.thermal_state ?? 'Not specified'}</div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 py-3 border-b border-slate-50">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide self-center">Laterality</div>
-            <div className="text-xs text-slate-700">{result.remedy1.laterality ?? 'Not specified'}</div>
-            <div className="text-xs text-slate-700">{result.remedy2.laterality ?? 'Not specified'}</div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 py-3 border-b border-slate-50">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide self-center">Miasm</div>
-            <div className="text-xs text-slate-700 capitalize">
-              {(result.remedy1.miasm ?? []).join(', ') || 'Not specified'}
-            </div>
-            <div className="text-xs text-slate-700 capitalize">
-              {(result.remedy2.miasm ?? []).join(', ') || 'Not specified'}
-            </div>
+            {columns.map(r => (
+              <div key={r.id} className="text-xs text-slate-700 capitalize">{r.thermal_state ?? 'Not specified'}</div>
+            ))}
           </div>
 
+          {/* Laterality */}
+          <div
+            className="py-3 border-b border-slate-50"
+            style={{ display: 'grid', gridTemplateColumns: `120px repeat(${columns.length}, 1fr)`, gap: '1rem' }}
+          >
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide self-center">Laterality</div>
+            {columns.map(r => (
+              <div key={r.id} className="text-xs text-slate-700">{r.laterality ?? 'Not specified'}</div>
+            ))}
+          </div>
+
+          {/* Miasm */}
+          <div
+            className="py-3 border-b border-slate-50"
+            style={{ display: 'grid', gridTemplateColumns: `120px repeat(${columns.length}, 1fr)`, gap: '1rem' }}
+          >
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide self-center">Miasm</div>
+            {columns.map(r => (
+              <div key={r.id} className="text-xs text-slate-700 capitalize">
+                {(r.miasm ?? []).join(', ') || 'Not specified'}
+              </div>
+            ))}
+          </div>
+
+          {/* Keynotes */}
           <FieldRow
             field="Keynotes"
-            values1={(result.remedy1.keynotes ?? []).map((k: { symptom: string }) => k.symptom)}
-            values2={(result.remedy2.keynotes ?? []).map((k: { symptom: string }) => k.symptom)}
-          />
-          <FieldRow field="Worse from" values1={result.remedy1.worse_from ?? []} values2={result.remedy2.worse_from ?? []} />
-          <FieldRow field="Better from" values1={result.remedy1.better_from ?? []} values2={result.remedy2.better_from ?? []} />
-          <FieldRow
-            field="Complements"
-            values1={result.remedy1.complementary_remedies ?? []}
-            values2={result.remedy2.complementary_remedies ?? []}
+            columns={columns.map(r => (r.keynotes ?? []).map((k: { symptom: string }) => k.symptom))}
           />
 
-          <div className="pt-3 text-xs text-slate-400 flex gap-4">
-            <span className="text-emerald-600 font-semibold">Green</span> = shared attribute
+          {/* Worse from */}
+          <FieldRow
+            field="Worse from"
+            columns={columns.map(r => r.worse_from ?? [])}
+          />
+
+          {/* Better from */}
+          <FieldRow
+            field="Better from"
+            columns={columns.map(r => r.better_from ?? [])}
+          />
+
+          {/* Complements */}
+          <FieldRow
+            field="Complements"
+            columns={columns.map(r => r.complementary_remedies ?? [])}
+          />
+
+          {/* Legend */}
+          <div className="pt-3 text-xs text-slate-400 flex gap-6">
+            <span className="text-emerald-600 font-semibold">Green</span> = shared between remedies
             <span className="text-jc-purple-700 font-semibold">Purple</span> = unique to that remedy
           </div>
         </div>

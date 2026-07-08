@@ -10,7 +10,7 @@ function getUsers(): JCUser[] {
     if (s) return JSON.parse(s) as JCUser[];
   } catch { /* ignore */ }
   const seed: JCUser[] = [
-    { phone: '9811067812', name: 'Mounik Pani', gender: 'Male', city: '', role: 'admin', cases: [] },
+    { phone: '9811067812', name: 'Mounik Pani', gender: 'Male', city: '', role: 'admin', cases: [], status: 'active' },
   ];
   localStorage.setItem(USERS_KEY, JSON.stringify(seed));
   return seed;
@@ -43,27 +43,42 @@ export const authStore = {
   register(phone: string, name: string, gender: JCUser['gender'], city: string, dob?: string): boolean {
     const users = getUsers();
     if (users.some(u => u.phone === phone)) return false;
-    users.push({ phone, name, gender, city, dob, role: 'user', cases: [] });
+    users.push({ phone, name, gender, city, dob, role: 'user', cases: [], status: 'active' });
     saveUsers(users);
     return true;
   },
 
   verifyOTP(otp: string): boolean {
-    return otp === HARDCODED_OTP;
+    return otp.trim() === HARDCODED_OTP;
   },
 
   login(phone: string): JCSession | null {
     let user = this.findUser(phone);
     if (!user && phone === '9811067812') {
       const users = getUsers();
-      user = { phone: '9811067812', name: 'Mounik Pani', gender: 'Male', city: '', role: 'admin', cases: [] };
+      user = { phone: '9811067812', name: 'Mounik Pani', gender: 'Male', city: '', role: 'admin', cases: [], status: 'active' };
       users.push(user);
       saveUsers(users);
     }
     if (!user) return null;
+    if (user.status === 'deleted') return null;
     const sess: JCSession = { phone: user.phone, name: user.name, role: user.role };
     this.setSession(sess);
     return sess;
+  },
+
+  updateUser(phone: string, updates: Partial<Pick<JCUser, 'name' | 'gender' | 'city' | 'dob'>>): boolean {
+    const users = getUsers();
+    const idx = users.findIndex(u => u.phone === phone);
+    if (idx < 0) return false;
+    users[idx] = { ...users[idx], ...updates };
+    saveUsers(users);
+    const currentSession = this.getSession();
+    if (currentSession && currentSession.phone === phone) {
+      const updated = { ...currentSession, name: updates.name ?? currentSession.name };
+      this.setSession(updated);
+    }
+    return true;
   },
 
   addCase(phone: string, savedCase: SavedCase) {
@@ -84,6 +99,10 @@ export const authStore = {
     return getUsers();
   },
 
+  getActiveUsers(): JCUser[] {
+    return getUsers().filter(u => u.status !== 'deleted');
+  },
+
   getAllCases(): { user: string; phone: string; case: SavedCase }[] {
     return getUsers().flatMap(u =>
       (u.cases ?? []).map(c => ({ user: u.name, phone: u.phone, case: c }))
@@ -92,15 +111,18 @@ export const authStore = {
 
   getTotalStats() {
     const users = getUsers();
+    const activeUsers = users.filter(u => u.status !== 'deleted');
     const totalCases = users.reduce((sum, u) => sum + (u.cases?.length ?? 0), 0);
-    return { totalUsers: users.length, totalCases };
+    return { totalUsers: activeUsers.length, totalCases };
   },
 
   deleteUserData(phone: string): boolean {
     const users = getUsers();
     const idx = users.findIndex(u => u.phone === phone);
     if (idx < 0 || users[idx].role === 'admin') return false;
-    users.splice(idx, 1);
+    users[idx].status = 'deleted';
+    users[idx].deletedAt = new Date().toISOString();
+    users[idx].cases = [];
     saveUsers(users);
     this.clearSession();
     return true;
@@ -110,7 +132,7 @@ export const authStore = {
     const users = getUsers();
     const idx = users.findIndex(u => u.phone === phone);
     if (idx >= 0) {
-      (users[idx] as JCUser & { consentGiven?: boolean }).consentGiven = false;
+      users[idx].consentGiven = false;
       saveUsers(users);
     }
   },

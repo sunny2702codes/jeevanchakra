@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Calendar, ChevronDown, ChevronUp, Trash2, FileText } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, Trash2, FileText, RefreshCw } from 'lucide-react';
 import { authStore } from '../auth/authStore';
 import { useApp } from '../App';
+import { humanize } from '../utils/humanize';
 import type { SavedCase } from '../types';
 
 interface CasesProps {
@@ -36,6 +37,7 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
   const ctx = useApp();
   const session = propSession ?? ctx.session;
   const navigate = propNavigate ?? ctx.navigate;
+  const { setClinicalSession, setClinicalResults } = ctx;
 
   const [cases, setCases] = useState<SavedCase[]>(() =>
     session ? authStore.getUserCases(session.phone) : []
@@ -63,30 +65,45 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
     setCases(authStore.getUserCases(session.phone));
   }
 
+  function handleFollowUp(c: SavedCase) {
+    setClinicalSession({
+      ...c.session,
+      id: `sess_${Date.now()}`,
+      started: new Date().toISOString(),
+    });
+    setClinicalResults(null);
+    navigate('intake');
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
 
       {/* Section banner */}
       <div className="jc-section-banner flex items-center gap-4">
-        <Calendar className="text-jc-purple-700 shrink-0" size={28} />
+        <div className="p-3 bg-white/20 rounded-xl shrink-0">
+          <Calendar className="text-white" size={24} />
+        </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-800">My Health Journey</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Your complete assessment history</p>
+          <div className="text-xs font-bold text-jc-gold-300 uppercase tracking-widest mb-1">Health Records</div>
+          <h1 className="text-xl font-bold text-white">My Health Journey</h1>
+          <p className="text-white/70 text-sm mt-1">Your complete assessment history</p>
         </div>
       </div>
 
       {/* Empty state */}
       {cases.length === 0 && (
         <div className="jc-card flex flex-col items-center gap-4 py-16 text-center">
-          <Calendar className="text-jc-purple-200" size={56} />
+          <div className="w-16 h-16 rounded-2xl bg-jc-purple-100 flex items-center justify-center">
+            <Calendar className="text-jc-purple-400" size={32} />
+          </div>
           <div>
-            <p className="text-slate-700 font-semibold text-lg">No assessments saved yet</p>
-            <p className="text-slate-400 text-sm mt-1">
-              Complete an assessment and save it to see your history here.
+            <p className="text-slate-800 font-semibold text-lg">No sessions yet</p>
+            <p className="text-slate-400 text-sm mt-1 max-w-xs">
+              Complete your first symptom assessment to begin tracking your homeopathic health journey.
             </p>
           </div>
           <button className="jc-btn-primary mt-2" onClick={() => navigate('safety')}>
-            Start New Assessment
+            Start First Assessment
           </button>
         </div>
       )}
@@ -113,7 +130,7 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                       <span className="text-xs text-slate-400">{formatDate(c.date)}</span>
                       {c.complaint && (
                         <span className="bg-jc-purple-100 text-jc-purple-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                          {c.complaint}
+                          {humanize(c.complaint)}
                         </span>
                       )}
                     </div>
@@ -149,19 +166,19 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                       {c.session.causation && c.session.causation.length > 0 && (
                         <div>
                           <span className="text-slate-400 text-xs uppercase tracking-wide">Causation</span>
-                          <p className="text-slate-700 mt-0.5">{c.session.causation.join(', ')}</p>
+                          <p className="text-slate-700 mt-0.5">{c.session.causation.map(humanize).join(', ')}</p>
                         </div>
                       )}
                       {c.session.worse_from && c.session.worse_from.length > 0 && (
                         <div>
                           <span className="text-slate-400 text-xs uppercase tracking-wide">Worse from</span>
-                          <p className="text-slate-700 mt-0.5">{c.session.worse_from.join(', ')}</p>
+                          <p className="text-slate-700 mt-0.5">{c.session.worse_from.map(humanize).join(', ')}</p>
                         </div>
                       )}
                       {c.session.better_from && c.session.better_from.length > 0 && (
                         <div>
                           <span className="text-slate-400 text-xs uppercase tracking-wide">Better from</span>
-                          <p className="text-slate-700 mt-0.5">{c.session.better_from.join(', ')}</p>
+                          <p className="text-slate-700 mt-0.5">{c.session.better_from.map(humanize).join(', ')}</p>
                         </div>
                       )}
                     </div>
@@ -175,7 +192,7 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                             <li key={r.remedy_id} className="flex items-center justify-between text-sm">
                               <span className="text-slate-700">
                                 <span className="text-slate-400 mr-1.5">{i + 1}.</span>
-                                {r.remedy_id}
+                                {r.latin_name ?? r.remedy_id}
                               </span>
                               <span
                                 className={
@@ -194,8 +211,19 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                       </div>
                     )}
 
+                    {/* Follow-up CTA */}
+                    <div className="pt-1">
+                      <button
+                        className="jc-btn-secondary text-sm flex items-center gap-2"
+                        onClick={() => handleFollowUp(c)}
+                      >
+                        <RefreshCw size={14} />
+                        Start Follow-up Assessment
+                      </button>
+                    </div>
+
                     {/* Delete row */}
-                    <div className="pt-1 flex justify-end">
+                    <div className="pt-1 flex justify-end border-t border-slate-50">
                       {isConfirming ? (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-500">Delete this case?</span>

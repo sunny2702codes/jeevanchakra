@@ -9,6 +9,8 @@ export interface JCUser {
   cases: SavedCase[];
   consentGiven?: boolean;
   consentDate?: string;
+  status?: 'active' | 'deleted';
+  deletedAt?: string;
 }
 
 export interface JCSession {
@@ -21,7 +23,7 @@ export interface JCSession {
 export type JCScreen =
   | 'splash' | 'login' | 'register' | 'otp'
   | 'home' | 'safety' | 'halt' | 'complaint' | 'intake' | 'results'
-  | 'cases' | 'library' | 'admin'
+  | 'cases' | 'library' | 'admin' | 'profile'
   | 'constitutional' | 'compare' | 'rubric-search' | 'privacy';
 
 // ── Remedy schema (matches hdss/data/remedies.js) ─────────────────

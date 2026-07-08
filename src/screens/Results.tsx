@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react';
-import { Pill, ChevronDown, ChevronUp, Save, RotateCcw, Loader2, Activity, Thermometer, Clock } from 'lucide-react';
+import { Pill, ChevronDown, ChevronUp, Save, RotateCcw, Loader2, Activity, Thermometer, Clock, Printer } from 'lucide-react';
 import { useApp } from '../App';
 import { rank, hasMinimumSet } from '../engines/scoring';
 import { buildDifferentials } from '../engines/differential';
 import { recommend as dosageRecommend } from '../engines/dosage';
 import { authStore } from '../auth/authStore';
-import type { ScoringResult, SavedCase } from '../types';
+// @ts-ignore
+import { REMEDIES } from '../data/remedies.js';
+import { humanize } from '../utils/humanize';
+import type { ScoringResult, SavedCase, Remedy } from '../types';
 
 interface ResultsProps {
   navigate: (s: string) => void;
@@ -66,10 +69,48 @@ export default function Results({ navigate, session: authSession }: ResultsProps
     return dosageRecommend(results[0].remedy_id, clinicalSession);
   }, [clinicalSession, results]);
 
+  // C-04: Full remedy profile for top match
+  const topRemedyFull = useMemo(() => {
+    if (results.length === 0) return null;
+    return (REMEDIES as unknown as Remedy[]).find(r => r.id === results[0].remedy_id) ?? null;
+  }, [results]);
+
+  // C-03: Unconfirmed grade-3 keynotes for top remedy
+  const missingKeynotes = useMemo(() => {
+    if (results.length === 0 || !clinicalSession || !topRemedyFull) return [];
+    const captured = new Set([
+      ...(clinicalSession.collected_keynotes ?? []),
+      ...(clinicalSession.worse_from ?? []),
+      ...(clinicalSession.better_from ?? []),
+    ]);
+    return (topRemedyFull.keynotes ?? [])
+      .filter(k => k.grade === 3 && !captured.has(k.symptom))
+      .slice(0, 4);
+  }, [results, clinicalSession, topRemedyFull]);
+
+  // C-06: Antidote check against most recent saved case
+  const antidoteWarning = useMemo(() => {
+    if (!authSession || results.length === 0) return null;
+    const savedCases = authStore.getUserCases(authSession.phone);
+    if (savedCases.length === 0) return null;
+    const lastCase = savedCases[0];
+    const lastRemedyId = lastCase.results?.[0]?.remedy_id;
+    if (!lastRemedyId) return null;
+    const currentTopId = results[0].remedy_id;
+    if (currentTopId === lastRemedyId) return null;
+    const currentFull = (REMEDIES as unknown as Remedy[]).find(r => r.id === currentTopId);
+    if (currentFull?.antidotes?.includes(lastRemedyId)) {
+      return {
+        current: results[0].latin_name ?? currentTopId,
+        last: lastCase.results?.[0]?.latin_name ?? lastRemedyId,
+      };
+    }
+    return null;
+  }, [authSession, results]);
+
   const canScore = clinicalSession ? hasMinimumSet(clinicalSession) : false;
   const noSession = !clinicalSession;
   const insufficient = clinicalSession && !canScore;
-
   const modCount = (clinicalSession?.worse_from?.length ?? 0) + (clinicalSession?.better_from?.length ?? 0);
 
   function handleSave() {
@@ -161,6 +202,17 @@ export default function Results({ navigate, session: authSession }: ResultsProps
         </div>
       )}
 
+      {/* C-06: Antidote compatibility warning */}
+      {antidoteWarning && (
+        <div className="jc-card bg-orange-50 border border-orange-200">
+          <div className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-1">Compatibility Notice</div>
+          <p className="text-sm text-orange-800">
+            {antidoteWarning.current} is an antidote to {antidoteWarning.last}, which appeared in your previous assessment.
+            Discuss with a qualified homeopathic practitioner before switching remedies.
+          </p>
+        </div>
+      )}
+
       {/* Potency guidance card */}
       {dosage && results.length > 0 && (
         <div className="jc-card bg-gradient-to-r from-jc-purple-50 to-white border-jc-purple-200">
@@ -194,6 +246,22 @@ export default function Results({ navigate, session: authSession }: ResultsProps
         </div>
       )}
 
+      {/* C-04: Remedy Profile (Boericke description) */}
+      {topRemedyFull?.description && results.length > 0 && (
+        <div className="jc-card">
+          <div className="text-xs font-bold text-jc-purple-400 uppercase tracking-widest mb-2">Remedy Profile</div>
+          <div className="text-sm font-semibold text-slate-800 mb-1">{topRemedyFull.latin_name}</div>
+          <p className="text-sm text-slate-600 leading-relaxed">{topRemedyFull.description}</p>
+          {topRemedyFull.complaints && topRemedyFull.complaints.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {topRemedyFull.complaints.slice(0, 6).map(c => (
+                <span key={c} className="text-xs bg-jc-purple-50 text-jc-purple-600 px-2 py-0.5 rounded-full">{humanize(c)}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Remedy cards */}
       <div className="space-y-3">
         {results.map((r, idx) => {
@@ -204,7 +272,7 @@ export default function Results({ navigate, session: authSession }: ResultsProps
           return (
             <div
               key={r.remedy_id}
-              className={`jc-card cursor-pointer hover:shadow-md transition-shadow overflow-hidden ${TIER_BORDER[tier] ?? 'border-l-4 border-l-slate-300'}`}
+              className={`jc-card cursor-pointer overflow-hidden ${TIER_BORDER[tier] ?? 'border-l-4 border-l-slate-300'}`}
               onClick={() => setExpanded(isOpen ? null : r.remedy_id)}
             >
               {/* Collapsed row */}
@@ -223,7 +291,7 @@ export default function Results({ navigate, session: authSession }: ResultsProps
                     <div className="flex flex-wrap gap-1 mt-1">
                       {topMatches.map((m, i) => (
                         <span key={i} className="text-xs bg-jc-purple-50 text-jc-purple-600 border border-jc-purple-100 rounded px-1.5 py-0.5 leading-tight">
-                          {m.field}: {m.value.replace(/_/g, ' ')}
+                          {m.field}: {humanize(m.value)}
                         </span>
                       ))}
                     </div>
@@ -256,7 +324,7 @@ export default function Results({ navigate, session: authSession }: ResultsProps
                         <div key={i} className="flex items-center gap-2 text-xs">
                           <span className="text-emerald-500 shrink-0">&#x2713;</span>
                           <span className="text-slate-500 font-medium w-28 shrink-0">{m.field}</span>
-                          <span className="text-slate-700 capitalize">{m.value.replace(/_/g, ' ')}</span>
+                          <span className="text-slate-700 capitalize">{humanize(m.value)}</span>
                           <span className="ml-auto text-slate-300 tabular-nums">{m.points.toFixed(1)} pts</span>
                         </div>
                       ))}
@@ -268,7 +336,7 @@ export default function Results({ navigate, session: authSession }: ResultsProps
                       <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Differentiate from</div>
                       <div className="space-y-2">
                         {differentials.slice(0, 3).map(d => (
-                          <div key={d.remedy_id} className="bg-slate-50 rounded-lg p-2.5">
+                          <div key={d.remedy_id} className="bg-slate-50 rounded-xl p-2.5">
                             <div className="text-xs font-semibold text-slate-700 mb-1">
                               {d.latin_name} ({d.abbreviation}) <span className="font-normal text-slate-400">{Math.round(d.score)}%</span>
                             </div>
@@ -287,13 +355,46 @@ export default function Results({ navigate, session: authSession }: ResultsProps
         })}
       </div>
 
+      {/* C-03: Missing keynotes hint */}
+      {missingKeynotes.length > 0 && (
+        <div className="jc-card bg-amber-50 border border-amber-100">
+          <div className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">
+            Unconfirmed keynotes for {results[0]?.latin_name}
+          </div>
+          <p className="text-xs text-amber-700 mb-3">
+            These grade-3 symptoms of the top remedy were not entered. Confirming any of them would raise the match score:
+          </p>
+          <ul className="space-y-1.5">
+            {missingKeynotes.map(k => (
+              <li key={k.symptom} className="flex items-center gap-2 text-xs text-amber-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                {humanize(k.symptom)}
+              </li>
+            ))}
+          </ul>
+          <button
+            className="mt-3 text-xs font-semibold text-amber-700 underline cursor-pointer hover:text-amber-900 transition-colors"
+            onClick={() => navigate('intake')}
+          >
+            Return to intake to confirm these
+          </button>
+        </div>
+      )}
+
       {/* Action bar */}
       {results.length > 0 && (
-        <div className="flex justify-between items-center flex-wrap gap-3">
+        <div className="flex justify-between items-center flex-wrap gap-3 print:hidden">
           <button className="jc-btn-ghost text-sm" onClick={() => navigate('intake')}>
             Back to Intake
           </button>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            <button
+              className="jc-btn-ghost flex items-center gap-2 text-sm"
+              onClick={() => window.print()}
+            >
+              <Printer size={14} />
+              Print Report
+            </button>
             {authSession && !saved && (
               <button
                 className="jc-btn-secondary flex items-center gap-2"
@@ -317,7 +418,7 @@ export default function Results({ navigate, session: authSession }: ResultsProps
         </div>
       )}
 
-      {/* Compact compliance note */}
+      {/* Compliance note */}
       {results.length > 0 && (
         <p className="text-xs text-slate-400 text-center leading-relaxed border-t border-slate-100 pt-3">
           These results represent symptom pattern matches based on classical homeopathic repertorization, not medical diagnoses.

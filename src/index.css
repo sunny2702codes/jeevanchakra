@@ -44,10 +44,10 @@
   }
 
   .jc-card {
-    @apply bg-white rounded-xl border border-slate-100 p-6 shadow-sm;
+    @apply bg-white rounded-2xl border border-slate-100 p-6 shadow-md transition-shadow duration-200 hover:shadow-lg;
   }
   .jc-card-purple {
-    @apply bg-jc-purple-50 rounded-xl border border-jc-purple-100 p-6;
+    @apply bg-jc-purple-50 rounded-2xl border border-jc-purple-100 p-6;
   }
   .jc-input {
     @apply w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-800
@@ -67,7 +67,7 @@
 
   /* Section banner: dark purple gradient, white text */
   .jc-section-banner {
-    @apply rounded-xl p-6 mb-6;
+    @apply rounded-2xl p-6 mb-6;
     background: linear-gradient(135deg, #3b1162 0%, #5B21B6 100%);
     border: 1px solid rgba(255,255,255,0.08);
   }
@@ -82,4 +82,33 @@
   .jc-option-idle {
     @apply border-slate-200 bg-white text-slate-700 hover:border-jc-purple-300 hover:bg-jc-purple-50;
   }
+}
+
+/* ── Print styles (P-03) ──────────────────────────────────────────────────── */
+
+@media print {
+  /* Hide navigation and interactive elements */
+  aside, header, .print\:hidden { display: none !important; }
+
+  /* Reset layout for print */
+  html, body, #root { height: auto !important; overflow: visible !important; }
+  body { background: white !important; }
+  main { padding: 0 !important; overflow: visible !important; }
+
+  /* Expand the main content to full width */
+  .flex.h-screen { display: block !important; }
+  .flex-1 { width: 100% !important; }
+
+  /* Card print styles */
+  .jc-card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; break-inside: avoid; }
+  .jc-section-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Score bars */
+  .bg-emerald-500, .bg-blue-400, .bg-amber-400 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Page breaks */
+  .space-y-3 > * { break-inside: avoid; }
+
+  /* Remove hover effects */
+  * { transition: none !important; }
 }

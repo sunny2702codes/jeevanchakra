@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Search, Bell, ChevronDown } from 'lucide-react';
+import { Search, Bell } from 'lucide-react';
+import Modal from './Modal';
 
 interface NavbarProps {
   session: { name: string; role: string } | null;
@@ -18,9 +19,10 @@ function getInitials(name: string): string {
 
 export default function Navbar({ session, navigate, title = '' }: NavbarProps) {
   const [searchFocused, setSearchFocused] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-100 px-6 flex items-center gap-4">
+    <header className="h-16 bg-white border-b border-slate-100 px-6 flex items-center gap-4 print:hidden">
       {/* Left: Screen title */}
       <div className="w-48 shrink-0">
         {title && (
@@ -54,24 +56,22 @@ export default function Navbar({ session, navigate, title = '' }: NavbarProps) {
 
       {/* Right: Bell + Avatar + Name */}
       <div className="flex items-center gap-3 shrink-0">
-        {/* Bell with badge */}
+        {/* Bell */}
         <button
-          className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+          className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors cursor-pointer"
           aria-label="Notifications"
+          onClick={() => setNotifOpen(true)}
         >
           <Bell size={20} />
-          <span
-            className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none"
-            aria-label="3 notifications"
-          >
-            3
-          </span>
         </button>
 
-        {/* Avatar + name + chevron */}
+        {/* Avatar + name */}
         {session && (
-          <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50 transition-colors">
-            {/* Initials avatar */}
+          <button
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50 transition-colors cursor-pointer"
+            onClick={() => navigate('profile')}
+            aria-label="Go to profile"
+          >
             <span
               className="flex items-center justify-center rounded-full bg-jc-purple-700 text-white font-semibold text-sm select-none shrink-0"
               style={{ width: 36, height: 36 }}
@@ -79,16 +79,21 @@ export default function Navbar({ session, navigate, title = '' }: NavbarProps) {
             >
               {getInitials(session.name)}
             </span>
-
-            {/* Name (hidden on small screens) */}
             <span className="hidden sm:block text-sm font-medium text-slate-700 max-w-[120px] truncate">
               {session.name}
             </span>
-
-            <ChevronDown size={16} className="text-slate-400 hidden sm:block" />
           </button>
         )}
       </div>
+
+      {/* Notifications modal */}
+      <Modal open={notifOpen} onClose={() => setNotifOpen(false)} title="Notifications">
+        <div className="text-center py-8">
+          <Bell size={36} className="mx-auto mb-3 text-slate-300" />
+          <p className="font-medium text-slate-600">No new notifications</p>
+          <p className="text-sm text-slate-400 mt-1">You are all caught up.</p>
+        </div>
+      </Modal>
     </header>
   );
 }

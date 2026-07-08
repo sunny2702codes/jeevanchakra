@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Search, BookOpen } from 'lucide-react';
+import { Search, BookOpen, ChevronRight } from 'lucide-react';
 import { getRubricsForRemedy } from '../engines/rubric_search';
 import { searchRemedies } from '../engines/remedy_compare';
 // @ts-ignore
 import { REMEDIES as _R } from '../data/remedies.js';
+import Modal from '../components/Modal';
+import { humanize } from '../utils/humanize';
 import type { Remedy } from '../types';
 
 interface RubricSearchProps { navigate: (s: string) => void; }
@@ -19,19 +21,19 @@ function searchBySymptom(q: string): Array<{ remedy: Remedy; matches: string[] }
     let score = 0;
     for (const kn of (r.keynotes ?? []) as Array<{ symptom: string; grade: number }>) {
       if (kn.symptom && kn.symptom.toLowerCase().includes(ql)) {
-        matches.push(`Keynote: ${kn.symptom}`);
+        matches.push(`Keynote: ${humanize(kn.symptom)}`);
         score += kn.grade * 3;
       }
     }
     for (const wf of r.worse_from ?? []) {
-      if (wf.toLowerCase().includes(ql)) { matches.push(`Worse from: ${wf}`); score += 2; }
+      if (wf.toLowerCase().includes(ql)) { matches.push(`Worse from: ${humanize(wf)}`); score += 2; }
     }
     for (const bf of r.better_from ?? []) {
-      if (bf.toLowerCase().includes(ql)) { matches.push(`Better from: ${bf}`); score += 2; }
+      if (bf.toLowerCase().includes(ql)) { matches.push(`Better from: ${humanize(bf)}`); score += 2; }
     }
     for (const c of (r.causation ?? []) as Array<{ trigger: string }>) {
       if (c.trigger && c.trigger.toLowerCase().includes(ql)) {
-        matches.push(`Causation: ${c.trigger}`);
+        matches.push(`Causation: ${humanize(c.trigger)}`);
         score += 4;
       }
     }
@@ -43,10 +45,69 @@ function searchBySymptom(q: string): Array<{ remedy: Remedy; matches: string[] }
     .map(({ remedy, matches }) => ({ remedy, matches }));
 }
 
+// ── Remedy detail panel (used inside modal) ───────────────────────────────────
+
+function RemedyDetailPanel({ remedy }: { remedy: Remedy }) {
+  const rubrics = getRubricsForRemedy(remedy.id);
+  return (
+    <div className="space-y-4 text-sm">
+      <div>
+        <div className="font-bold text-slate-800 text-base">{remedy.latin_name}</div>
+        <div className="text-xs text-slate-400">{remedy.abbreviation} - {remedy.common_name}</div>
+        {remedy.description && (
+          <p className="text-xs text-slate-500 mt-2 leading-relaxed border-l-2 border-jc-purple-200 pl-3">{remedy.description}</p>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {remedy.thermal_state && (
+          <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full capitalize font-medium">
+            {remedy.thermal_state}
+          </span>
+        )}
+        {(remedy.miasm ?? []).map((m: string) => (
+          <span key={m} className="text-xs bg-jc-purple-50 text-jc-purple-700 px-2.5 py-1 rounded-full capitalize">
+            {m}
+          </span>
+        ))}
+      </div>
+
+      {rubrics.length > 0 ? (
+        <div className="grid grid-cols-2 gap-4">
+          {(['Keynote', 'Causation', 'Worse from', 'Better from'] as const).map(cat => {
+            const items = rubrics.filter(r => r.field === cat);
+            if (!items.length) return null;
+            return (
+              <div key={cat}>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">{cat}</p>
+                <ul className="space-y-1">
+                  {items.map((r, i) => (
+                    <li key={i} className="text-xs text-slate-700 flex gap-2">
+                      <span className="text-jc-purple-400 shrink-0">+</span>
+                      {humanize(r.value)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-xs text-slate-400 text-center py-6">
+          No rubric data available in the current database.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
+
 export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
   const [symptomQuery, setSymptomQuery]   = useState('');
   const [remedyQuery, setRemedyQuery]     = useState('');
   const [selectedRemedy, setSelectedRemedy] = useState<Remedy | null>(null);
+  const [modalRemedy, setModalRemedy]     = useState<Remedy | null>(null);
   const [tab, setTab] = useState<'symptom' | 'remedy'>('symptom');
 
   const symptomResults = useMemo(() => searchBySymptom(symptomQuery), [symptomQuery]);
@@ -54,13 +115,10 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
     () => remedyQuery.length > 1 ? searchRemedies(remedyQuery).slice(0, 8) : [],
     [remedyQuery],
   );
-  const remedyRubrics = useMemo(
-    () => selectedRemedy ? getRubricsForRemedy(selectedRemedy.id) : [],
-    [selectedRemedy],
-  );
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {/* Banner */}
       <div className="jc-section-banner flex items-start gap-4">
         <div className="p-3 bg-white/20 rounded-xl">
           <Search size={24} className="text-white" />
@@ -74,6 +132,7 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {[
           { key: 'symptom', label: 'Search by Symptom' },
@@ -94,6 +153,7 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
         ))}
       </div>
 
+      {/* Symptom search tab */}
       {tab === 'symptom' && (
         <div className="space-y-4">
           <div className="relative">
@@ -115,25 +175,35 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
 
           {symptomResults.length > 0 && (
             <div className="space-y-3">
-              <p className="text-xs text-slate-400">{symptomResults.length} remedies found</p>
+              <p className="text-xs text-slate-400">{symptomResults.length} remedies found. Click a card to view full details.</p>
               {symptomResults.map(({ remedy, matches }) => (
-                <div key={remedy.id} className="jc-card p-4 space-y-2">
+                <div
+                  key={remedy.id}
+                  className="jc-card p-4 space-y-2 cursor-pointer group"
+                  onClick={() => setModalRemedy(remedy)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === 'Enter' && setModalRemedy(remedy)}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="font-bold text-slate-800 text-sm">{remedy.latin_name}</div>
                       <div className="text-xs text-slate-400">{remedy.abbreviation}</div>
                     </div>
-                    <div className="flex gap-1 flex-wrap">
-                      {remedy.thermal_state && (
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full capitalize">
-                          {remedy.thermal_state}
-                        </span>
-                      )}
-                      {(remedy.miasm ?? []).slice(0, 1).map((m: string) => (
-                        <span key={m} className="text-xs bg-jc-purple-50 text-jc-purple-700 px-2 py-0.5 rounded-full capitalize">
-                          {m}
-                        </span>
-                      ))}
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1 flex-wrap">
+                        {remedy.thermal_state && (
+                          <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full capitalize">
+                            {remedy.thermal_state}
+                          </span>
+                        )}
+                        {(remedy.miasm ?? []).slice(0, 1).map((m: string) => (
+                          <span key={m} className="text-xs bg-jc-purple-50 text-jc-purple-700 px-2 py-0.5 rounded-full capitalize">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                      <ChevronRight size={14} className="text-slate-300 group-hover:text-jc-purple-500 transition-colors shrink-0" />
                     </div>
                   </div>
                   <ul className="space-y-1">
@@ -159,6 +229,7 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
         </div>
       )}
 
+      {/* Remedy lookup tab */}
       {tab === 'remedy' && (
         <div className="space-y-4">
           <div className="relative">
@@ -190,44 +261,23 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
             </ul>
           )}
 
-          {selectedRemedy && remedyRubrics.length > 0 && (
-            <div className="jc-card space-y-4">
-              <div>
-                <h3 className="font-bold text-slate-800">{selectedRemedy.latin_name}</h3>
-                <p className="text-xs text-slate-400">{selectedRemedy.abbreviation} - {selectedRemedy.common_name}</p>
+          {selectedRemedy && (
+            <div
+              className="jc-card space-y-4 cursor-pointer group"
+              onClick={() => setModalRemedy(selectedRemedy)}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-800">{selectedRemedy.latin_name}</h3>
+                  <p className="text-xs text-slate-400">{selectedRemedy.abbreviation} - {selectedRemedy.common_name}</p>
+                  {selectedRemedy.description && (
+                    <p className="text-xs text-slate-500 mt-2 leading-relaxed">{selectedRemedy.description}</p>
+                  )}
+                </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-jc-purple-500 transition-colors shrink-0 mt-1" />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {(['Keynote', 'Causation', 'Worse from', 'Better from'] as const).map(cat => {
-                  const items = remedyRubrics.filter(r => r.field === cat);
-                  if (!items.length) return null;
-                  return (
-                    <div key={cat}>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">{cat}</p>
-                      <ul className="space-y-1">
-                        {items.map((r, i) => (
-                          <li key={i} className="text-xs text-slate-700 flex gap-2">
-                            <span className="text-jc-purple-400 shrink-0">+</span>
-                            {r.value}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {selectedRemedy.description && (
-                <p className="text-xs text-slate-500 leading-relaxed border-t border-slate-100 pt-3">
-                  {selectedRemedy.description}
-                </p>
-              )}
-            </div>
-          )}
-
-          {selectedRemedy && remedyRubrics.length === 0 && (
-            <div className="jc-card text-center py-10 text-slate-400">
-              <p className="text-sm">No rubric data available for this remedy in the current database.</p>
+              <RemedyDetailPanel remedy={selectedRemedy} />
             </div>
           )}
 
@@ -239,6 +289,16 @@ export default function RubricSearch({ navigate: _nav }: RubricSearchProps) {
           )}
         </div>
       )}
+
+      {/* Remedy detail modal */}
+      <Modal
+        open={!!modalRemedy}
+        onClose={() => setModalRemedy(null)}
+        title={modalRemedy?.latin_name ?? ''}
+        maxWidth="max-w-xl"
+      >
+        {modalRemedy && <RemedyDetailPanel remedy={modalRemedy} />}
+      </Modal>
     </div>
   );
 }

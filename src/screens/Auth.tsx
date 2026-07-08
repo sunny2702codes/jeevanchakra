@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, Check } from 'lucide-react';
+import { Eye, EyeOff, Check, ShieldCheck } from 'lucide-react';
 import Logo from '../components/Logo';
+import Modal from '../components/Modal';
 import { authStore } from '../auth/authStore';
 
 interface AuthProps {
   screen: 'login' | 'register' | 'otp';
   onSuccess: (sess: { phone: string; name: string; role: 'admin' | 'user' }) => void;
+  navigate?: (s: string) => void;
 }
 
 function calcAge(dob: string): number {
@@ -19,19 +21,22 @@ function calcAge(dob: string): number {
 }
 
 export default function AuthScreens({ screen: initialScreen, onSuccess }: AuthProps) {
-  const [localScreen, setLocalScreen] = useState<'login' | 'register'>(
+  const [localScreen, setLocalScreen] = useState<'login' | 'register' | 'otp'>(
     initialScreen === 'otp' ? 'login' : initialScreen as 'login' | 'register'
   );
-  const [phone, setPhone]     = useState('');
-  const [name, setName]       = useState('');
-  const [dob, setDob]         = useState('');
-  const [gender, setGender]   = useState<'Male' | 'Female' | 'Other'>('Male');
-  const [city, setCity]       = useState('');
+  const [phone, setPhone]         = useState('');
+  const [name, setName]           = useState('');
+  const [dob, setDob]             = useState('');
+  const [gender, setGender]       = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [city, setCity]           = useState('');
   const [showPhone, setShowPhone] = useState(false);
-  const [error, setError]     = useState('');
-  const [consent1, setConsent1] = useState(false);
-  const [consent2, setConsent2] = useState(false);
-  const [consent3, setConsent3] = useState(false);
+  const [error, setError]         = useState('');
+  const [consent1, setConsent1]   = useState(false);
+  const [consent2, setConsent2]   = useState(false);
+  const [consent3, setConsent3]   = useState(false);
+  const [otpInput, setOtpInput]   = useState('');
+  const [pendingPhone, setPendingPhone] = useState('');
+  const [showPrivacy, setShowPrivacy]   = useState(false);
 
   const cardVariants = {
     initial: { opacity: 0, y: 16, scale: 0.97 },
@@ -50,9 +55,9 @@ export default function AuthScreens({ screen: initialScreen, onSuccess }: AuthPr
       setError('No account found. Please register first.');
       return;
     }
-    const sess = authStore.login(phone);
-    if (sess) onSuccess(sess);
-    else setError('Login failed. Please try again.');
+    setPendingPhone(phone);
+    setOtpInput('');
+    setLocalScreen('otp');
   }
 
   function handleRegister() {
@@ -64,9 +69,21 @@ export default function AuthScreens({ screen: initialScreen, onSuccess }: AuthPr
     if (authStore.findUser(phone)) { setError('This number is already registered. Please sign in.'); return; }
     if (!consent1 || !consent2 || !consent3) { setError('Please accept all required consents to continue.'); return; }
     authStore.register(phone, name.trim(), gender, city, dob);
-    const sess = authStore.login(phone);
+    setPendingPhone(phone);
+    setOtpInput('');
+    setLocalScreen('otp');
+  }
+
+  function handleVerifyOTP() {
+    setError('');
+    if (!authStore.verifyOTP(otpInput)) {
+      setError('Incorrect OTP. Please try again.');
+      setOtpInput('');
+      return;
+    }
+    const sess = authStore.login(pendingPhone);
     if (sess) onSuccess(sess);
-    else setError('Registration failed. Please try again.');
+    else setError('Authentication failed. Please try again.');
   }
 
   const maxDob = new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0];
@@ -94,6 +111,59 @@ export default function AuthScreens({ screen: initialScreen, onSuccess }: AuthPr
           <div className="flex justify-center mb-6">
             <Logo size="auth" showText />
           </div>
+
+          {/* ---- OTP ---- */}
+          {localScreen === 'otp' && (
+            <>
+              <div className="flex justify-center mb-4">
+                <div className="w-14 h-14 rounded-full bg-jc-purple-100 flex items-center justify-center">
+                  <ShieldCheck size={28} className="text-jc-purple-700" />
+                </div>
+              </div>
+
+              <h2 className="text-2xl font-bold text-slate-800 mb-1 text-center">Verify Identity</h2>
+              <p className="text-slate-500 text-sm mb-6 text-center">
+                Enter the 4-digit OTP sent to +91 {pendingPhone.slice(0, 3)}XXXXXXX{pendingPhone.slice(-2)}
+              </p>
+
+              <label className="jc-label">One-Time Password</label>
+              <input
+                className="jc-input text-center text-2xl tracking-[0.5em] font-bold mb-4"
+                type="text"
+                maxLength={4}
+                inputMode="numeric"
+                placeholder="----"
+                value={otpInput}
+                onChange={e => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={e => e.key === 'Enter' && handleVerifyOTP()}
+                autoFocus
+                aria-label="OTP"
+              />
+
+              {error && (
+                <p className="text-red-600 text-sm mb-3 bg-red-50 px-3 py-2 rounded-lg" role="alert">{error}</p>
+              )}
+
+              <button className="jc-btn-primary w-full" onClick={handleVerifyOTP}>
+                Verify and Continue
+              </button>
+
+              <button
+                className="jc-btn-ghost w-full mt-3"
+                onClick={() => {
+                  setLocalScreen('login');
+                  setOtpInput('');
+                  setError('');
+                }}
+              >
+                Back
+              </button>
+
+              <p className="text-center text-xs text-slate-400 mt-4">
+                Use OTP: 2702 (prototype)
+              </p>
+            </>
+          )}
 
           {/* ---- LOGIN ---- */}
           {localScreen === 'login' && (
@@ -133,7 +203,7 @@ export default function AuthScreens({ screen: initialScreen, onSuccess }: AuthPr
                 <p className="text-red-600 text-sm mb-3 bg-red-50 px-3 py-2 rounded-lg" role="alert">{error}</p>
               )}
 
-              <button className="jc-btn-primary w-full" onClick={handleLogin}>Sign In</button>
+              <button className="jc-btn-primary w-full" onClick={handleLogin}>Continue</button>
 
               <p className="text-center text-sm text-slate-500 mt-5">
                 New here?{' '}
@@ -147,9 +217,19 @@ export default function AuthScreens({ screen: initialScreen, onSuccess }: AuthPr
 
               <p className="text-center text-xs text-slate-400 mt-4 leading-relaxed">
                 By signing in, you agree to our{' '}
-                <button className="text-jc-purple-600 hover:underline cursor-pointer">Privacy Policy</button>
+                <button
+                  className="text-jc-purple-600 hover:underline cursor-pointer"
+                  onClick={() => setShowPrivacy(true)}
+                >
+                  Privacy Policy
+                </button>
                 {' '}and{' '}
-                <button className="text-jc-purple-600 hover:underline cursor-pointer">Terms of Use</button>.
+                <button
+                  className="text-jc-purple-600 hover:underline cursor-pointer"
+                  onClick={() => setShowPrivacy(true)}
+                >
+                  Terms of Use
+                </button>.
               </p>
             </>
           )}
@@ -302,7 +382,7 @@ export default function AuthScreens({ screen: initialScreen, onSuccess }: AuthPr
               )}
 
               <button className="jc-btn-primary w-full mt-5" onClick={handleRegister}>
-                Create Account
+                Continue
               </button>
 
               <p className="text-center text-sm text-slate-500 mt-4">
@@ -318,6 +398,45 @@ export default function AuthScreens({ screen: initialScreen, onSuccess }: AuthPr
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Privacy Policy modal */}
+      <Modal open={showPrivacy} onClose={() => setShowPrivacy(false)} title="Privacy Policy" maxWidth="max-w-3xl">
+        <div className="space-y-4 text-sm text-slate-700 leading-relaxed">
+          <p>
+            JeevanChakra is a classical homeopathy decision support tool compliant with the
+            Digital Personal Data Protection Act 2023 (DPDP Act).
+          </p>
+          <div>
+            <p className="font-semibold text-slate-800 mb-1">What we collect</p>
+            <p>Name, mobile number, date of birth, city, health complaints, emotional state, constitutional traits, and lifestyle preferences.</p>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800 mb-1">Purpose</p>
+            <p>
+              To match your symptom patterns against 700 Boericke remedies for classical homeopathy decision support.
+              This is a reference tool, not a diagnostic or treatment service.
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800 mb-1">Your rights under DPDP Act 2023</p>
+            <ul className="space-y-1 pl-4 list-disc text-slate-600">
+              <li>Right to access your personal data</li>
+              <li>Right to correct inaccurate data</li>
+              <li>Right to erase your account and all associated data</li>
+              <li>Right to withdraw consent at any time</li>
+              <li>Right to grievance redressal</li>
+            </ul>
+          </div>
+          <div className="bg-jc-purple-50 border border-jc-purple-100 rounded-xl p-4">
+            <p className="font-semibold text-slate-800 text-xs mb-1">Grievance Officer</p>
+            <p className="text-xs text-slate-600">Mounik Pani, grievance@jeevanchakra.in</p>
+            <p className="text-xs text-slate-500">Response within 48 hours</p>
+          </div>
+          <p className="text-slate-400 text-xs">
+            For the full Privacy Policy, view it from the sidebar navigation after signing in.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

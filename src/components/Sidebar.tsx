@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   House,
@@ -7,6 +8,7 @@ import {
   Calendar,
   GitCompare,
   User,
+  UserCircle,
   HelpCircle,
   ShieldCheck,
   Crown,
@@ -14,6 +16,7 @@ import {
   FileText,
 } from 'lucide-react';
 import Logo from './Logo';
+import Modal from './Modal';
 
 interface SidebarProps {
   currentScreen: string;
@@ -36,6 +39,7 @@ const PRIMARY_NAV: NavItem[] = [
   { label: 'My Health Journey',  icon: <Calendar size={18} />,      screen: 'cases' },
   { label: 'Compare Remedies',   icon: <GitCompare size={18} />,    screen: 'compare' },
   { label: 'Constitutional',     icon: <User size={18} />,          screen: 'constitutional' },
+  { label: 'My Profile',         icon: <UserCircle size={18} />,    screen: 'profile' },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
@@ -45,6 +49,8 @@ const SECONDARY_NAV: NavItem[] = [
 
 export default function Sidebar({ currentScreen, navigate, session, onLogout }: SidebarProps) {
   const isAdmin = session?.role === 'admin';
+  const [helpOpen, setHelpOpen]       = useState(false);
+  const [premiumOpen, setPremiumOpen] = useState(false);
 
   function itemClass(screen: string) {
     const isActive = currentScreen === screen;
@@ -100,7 +106,7 @@ export default function Sidebar({ currentScreen, navigate, session, onLogout }: 
               className={itemClass(item.screen)}
               onClick={() => {
                 if (item.screen === '__help') {
-                  alert('Help and Support coming soon.');
+                  setHelpOpen(true);
                 } else {
                   navigate(item.screen);
                 }
@@ -144,7 +150,7 @@ export default function Sidebar({ currentScreen, navigate, session, onLogout }: 
             <button
               className="w-full rounded-lg py-1.5 text-xs font-semibold text-jc-purple-900 transition-colors cursor-pointer"
               style={{ background: 'linear-gradient(90deg, #FCD34D, #F59E0B)' }}
-              onClick={() => alert('Coming soon.')}
+              onClick={() => setPremiumOpen(true)}
             >
               Upgrade Now
             </button>
@@ -168,6 +174,34 @@ export default function Sidebar({ currentScreen, navigate, session, onLogout }: 
           <span>Log Out</span>
         </motion.button>
       </div>
+
+      {/* Modals */}
+      <Modal open={helpOpen} onClose={() => setHelpOpen(false)} title="Help and Support">
+        <div className="space-y-4 text-sm text-slate-700">
+          <p>For support or data-related queries, contact our Grievance Officer:</p>
+          <div className="bg-slate-50 rounded-xl p-4 space-y-1.5 text-sm">
+            <p><span className="font-semibold text-slate-700">Name:</span> Mounik Pani</p>
+            <p><span className="font-semibold text-slate-700">Email:</span> grievance@jeevanchakra.in</p>
+            <p><span className="font-semibold text-slate-700">Response time:</span> Within 48 hours</p>
+          </div>
+          <p className="text-slate-500 text-xs">
+            You can also view our Privacy Policy from the sidebar navigation.
+          </p>
+        </div>
+      </Modal>
+
+      <Modal open={premiumOpen} onClose={() => setPremiumOpen(false)} title="Premium Features">
+        <div className="space-y-4 text-sm text-slate-700">
+          <p>Premium features are in development. They will include:</p>
+          <ul className="space-y-2 pl-4 list-disc text-slate-600">
+            <li>Advanced constitutional analysis with detailed profiles</li>
+            <li>Case history export and practitioner sharing</li>
+            <li>Extended remedy database with clinical notes</li>
+            <li>Priority grievance support</li>
+          </ul>
+          <p className="text-slate-400 text-xs mt-2">Stay tuned for updates.</p>
+        </div>
+      </Modal>
     </aside>
   );
 }

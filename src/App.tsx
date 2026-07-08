@@ -20,6 +20,7 @@ import CompareScreen from './screens/CompareRemedies';
 import ConstitutionalScreen from './screens/ConstitutionalType';
 import RubricSearchScreen from './screens/RubricSearch';
 import PrivacyPolicyScreen from './screens/PrivacyPolicy';
+import ProfileScreen from './screens/Profile';
 
 function HaltScreen({ navigate }: { navigate: (s: string) => void }) {
   return (
@@ -87,7 +88,8 @@ const screenVariants = {
 
 export default function App() {
   const [screen, setScreen] = useState<JCScreen>('splash');
-  const [session, setSession] = useState<JCSession | null>(() => authStore.getSession());
+  // Session starts null: always requires OTP before gaining access
+  const [session, setSession] = useState<JCSession | null>(null);
   const [clinicalSession, setClinicalSession] = useState<ClinicalSession | null>(null);
   const [clinicalResults, setClinicalResults] = useState<ScoringResult[] | null>(null);
 
@@ -100,13 +102,9 @@ export default function App() {
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   function handleSplashDone() {
-    const existing = authStore.getSession();
-    if (existing) {
-      setSession(existing);
-      navigate('home');
-    } else {
-      navigate('login');
-    }
+    // Always go to login: OTP is required every session
+    authStore.clearSession();
+    navigate('login');
   }
 
   function handleLogin(sess: JCSession) {
@@ -139,6 +137,7 @@ export default function App() {
       case 'constitutional': return <ConstitutionalScreen navigate={navigate} session={clinicalSession} />;
       case 'rubric-search':  return <RubricSearchScreen navigate={navigate} />;
       case 'privacy':        return <PrivacyPolicyScreen navigate={navigate} />;
+      case 'profile':        return <ProfileScreen session={session} navigate={navigate} onLogout={handleLogout} />;
       default:               return <HomeScreen session={session} navigate={navigate} />;
     }
   }
@@ -172,6 +171,7 @@ export default function App() {
         <AuthScreens
           screen={screen as 'login' | 'register' | 'otp'}
           onSuccess={handleLogin}
+          navigate={navigate}
         />
       </AppContext.Provider>
     );
@@ -194,7 +194,7 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Navbar session={session} navigate={navigate} />
 
-          <main className="flex-1 overflow-y-auto p-6 bg-jc-purple-50/40">
+          <main className="flex-1 overflow-y-auto p-6 bg-jc-purple-50/40 print:p-0 print:bg-white">
             <AnimatePresence mode="wait">
               <motion.div
                 key={screen}
