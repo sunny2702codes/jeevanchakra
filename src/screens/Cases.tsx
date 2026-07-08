@@ -97,7 +97,7 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
           {cases.map(c => {
             const topResult = c.results?.[0];
             const topRemedy = c.topRemedy ?? topResult?.remedy_id ?? 'Unknown';
-            const topScore = topResult ? Math.round(topResult.normalised) : 0;
+            const topScore = topResult ? Math.round(topResult.normalised_score) : 0;
             const isExpanded = expandedId === c.id;
             const isConfirming = confirmDeleteId === c.id;
 
@@ -186,7 +186,7 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                                     : 'jc-badge-possible'
                                 }
                               >
-                                {Math.round(r.normalised)}% {r.tier}
+                                {Math.round(r.normalised_score)}% {r.tier}
                               </span>
                             </li>
                           ))}

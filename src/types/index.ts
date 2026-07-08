@@ -39,10 +39,10 @@ export interface Causation {
 }
 
 export interface RemedyMentals {
-  anxiety_type?: string;
-  fear_type?: string;
-  mood?: string;
-  consolation_response?: 'better' | 'worse' | 'indifferent';
+  anxiety_type?: string | string[];
+  fear_type?: string | string[];
+  mood?: string | string[];
+  consolation_response?: 'better' | 'worse' | 'indifferent' | string;
   desires_company?: boolean;
 }
 
@@ -54,7 +54,7 @@ export interface RemedyGenerals {
 }
 
 export interface RemedyBranches {
-  [branch: string]: string[];
+  [branch: string]: unknown;
 }
 
 export interface Remedy {
@@ -90,9 +90,13 @@ export type FlagSeverity = 'emergency' | 'urgent' | 'caution';
 
 export interface RedFlag {
   id: string;
+  category?: string;
   severity: FlagSeverity;
-  label: string;
-  description: string;
+  question: string;
+  trigger?: string[];
+  message?: string;
+  label?: string;
+  description?: string;
   keywords?: string[];
   branch?: string;
 }
@@ -124,7 +128,7 @@ export interface ClinicalSession {
 }
 
 // ── Scoring ───────────────────────────────────────────────────────
-export type ScoreTier = 'Strong' | 'Probable' | 'Possible';
+export type ScoreTier = 'Strong' | 'Probable' | 'Possible' | 'BelowThreshold';
 
 export interface MatchedSymptom {
   field: string;
@@ -136,16 +140,22 @@ export interface MatchedSymptom {
 
 export interface ScoringResult {
   remedy_id: string;
-  raw: number;
-  normalised: number;
+  latin_name?: string;
+  common_name?: string;
+  abbreviation?: string;
+  raw_score: number;
+  max_possible: number;
+  normalised_score: number;
   tier: ScoreTier;
-  matched: MatchedSymptom[];
+  matches: MatchedSymptom[];
+  missing: Array<{type: string; item: string}>;
 }
 
 export interface RankedResults {
+  sufficient: boolean;
+  reason: string;
   results: ScoringResult[];
-  max_possible: number;
-  session_id: string;
+  all: ScoringResult[];
 }
 
 // ── Saved case ────────────────────────────────────────────────────

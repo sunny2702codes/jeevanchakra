@@ -17,6 +17,29 @@ import CasesScreen from './screens/Cases';
 import LibraryScreen from './screens/Library';
 import AdminScreen from './screens/Admin';
 
+function HaltScreen({ navigate }: { navigate: (s: string) => void }) {
+  return (
+    <div className="max-w-2xl mx-auto flex flex-col items-center gap-6 py-16 text-center">
+      <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+        <span className="text-4xl">🚨</span>
+      </div>
+      <div>
+        <h2 className="text-2xl font-bold text-red-700">Emergency: Stop Here</h2>
+        <p className="text-slate-600 mt-3 leading-relaxed max-w-lg">
+          An emergency pattern has been identified. Please call emergency services or go to the nearest hospital immediately.
+          Homeopathy cannot substitute for emergency medical care.
+        </p>
+      </div>
+      <a href="tel:112" className="jc-btn-primary bg-red-600 hover:bg-red-700 text-white">
+        Call Emergency (112)
+      </a>
+      <button className="jc-btn-ghost text-slate-400 text-sm" onClick={() => navigate('safety')}>
+        Go back to safety screen
+      </button>
+    </div>
+  );
+}
+
 // ── App Context ──────────────────────────────────────────────────────────────
 
 interface AppContextValue {
@@ -98,6 +121,7 @@ export default function App() {
     switch (screen) {
       case 'home':       return <HomeScreen session={session} navigate={navigate} />;
       case 'safety':     return <SafetyScreen navigate={navigate} session={session} />;
+      case 'halt':       return <HaltScreen navigate={navigate} />;
       case 'complaint':  return <ComplaintScreen navigate={navigate} />;
       case 'intake':     return <IntakeScreen navigate={navigate} />;
       case 'results':    return <ResultsScreen navigate={navigate} session={session} />;
