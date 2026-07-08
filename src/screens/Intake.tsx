@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { MessageSquare, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { MessageSquare, ChevronLeft, ChevronRight, Check, Zap } from 'lucide-react';
 import { useApp } from '../App';
 import { INTAKE_POOLS } from '../data/intake.js';
-import type { ClinicalSession } from '../types';
+import { hasMinimumSet } from '../engines/scoring';
+import type { ClinicalSession, Miasm, ConstitutionType } from '../types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ function applyAnswer(
   question: IntakeQuestion,
   values: string[],
 ): ClinicalSession {
-  const field = question.session_field as keyof ClinicalSession;
+  const field = question.session_field as string;
 
   if (question.type === 'single') {
     const val = values[0] ?? null;
@@ -51,7 +52,9 @@ function applyAnswer(
     if (field === 'consolation_response') return { ...session, consolation_response: val };
     if (field === 'laterality') return { ...session, laterality: val };
     if (field === 'duration') return { ...session, duration: val };
-    // build, perspiration etc go to branch_answers
+    if (field === 'miasm_hint') return { ...session, miasm_hint: val as Miasm };
+    if (field === 'constitution_type') return { ...session, constitution_hint: val as ConstitutionType };
+    // build, perspiration, sleep_position etc go to branch_answers
     return { ...session, branch_answers: { ...session.branch_answers, [question.id]: [val ?? ''] } };
   }
 
@@ -156,6 +159,14 @@ export default function Intake({ navigate }: IntakeProps) {
   }
 
   const progress = Math.round(((step + 1) / questions.length) * 100);
+  const CORE_THRESHOLD = 8;
+  const coreComplete = step >= CORE_THRESHOLD && hasMinimumSet(session);
+
+  function handleEarlyResults() {
+    setClinicalSession(session);
+    setClinicalResults(null);
+    navigate('results');
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -196,6 +207,22 @@ export default function Intake({ navigate }: IntakeProps) {
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {/* Adaptive shortcut: core questions done, offer early results */}
+      {coreComplete && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <Zap size={16} className="text-emerald-600 shrink-0" />
+          <p className="text-sm text-emerald-800 flex-1">
+            Core symptoms captured. You can see results now, or continue for greater precision.
+          </p>
+          <button
+            className="text-xs font-semibold text-emerald-700 border border-emerald-300 rounded-lg px-3 py-1.5 hover:bg-emerald-100 transition-colors shrink-0 cursor-pointer"
+            onClick={handleEarlyResults}
+          >
+            See Results Now
+          </button>
+        </div>
+      )}
 
       {/* Question card */}
       <div className="jc-card space-y-5">
