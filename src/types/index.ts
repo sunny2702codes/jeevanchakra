@@ -131,6 +131,10 @@ export interface ClinicalSession {
   collected_keynotes: string[];
   miasm_hint?: Miasm;
   constitution_hint?: ConstitutionType;
+  patientName?: string;
+  patientAge?: number;
+  patientGender?: 'Male' | 'Female' | 'Other';
+  added_rubric_ids?: string[];
 }
 
 // ── Scoring ───────────────────────────────────────────────────────
@@ -187,6 +191,8 @@ export interface SavedCase {
   notes?: string;
   patientId?: string;
   patientName?: string;
+  patientAge?: number;
+  patientGender?: 'Male' | 'Female' | 'Other';
 }
 
 // ── Intake pool (matches hdss/data/intake.js) ─────────────────────

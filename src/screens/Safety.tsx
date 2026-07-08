@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { Shield, AlertTriangle, AlertCircle, Info } from 'lucide-react';
-import type { RedFlag, FlagSeverity } from '../types';
+import { useState, useEffect } from 'react';
+import { Shield, AlertTriangle, AlertCircle, Info, User } from 'lucide-react';
+import type { RedFlag, FlagSeverity, ClinicalSession } from '../types';
+import { useApp } from '../App';
+import { patientStore } from '../data/patientStore';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - JS data file, typed below
 import { RED_FLAGS as _RAW } from '../data/redflags.js';
@@ -19,13 +21,79 @@ const SEV: Record<FlagSeverity, { label: string; cls: string; bg: string; bdr: s
 };
 
 export default function Safety({ navigate }: SafetyProps) {
+  const { clinicalSession, setClinicalSession, currentPatientId } = useApp();
+
   const [declared, setDeclared] = useState(false);
+  const [patientName, setPatientName]   = useState('');
+  const [patientAgeStr, setPatientAgeStr] = useState('');
+  const [patientGender, setPatientGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [fromRecord, setFromRecord] = useState(false);
+
+  useEffect(() => {
+    if (currentPatientId) {
+      const p = patientStore.findById(currentPatientId);
+      if (p) {
+        setPatientName(p.name);
+        setPatientAgeStr(p.age ? String(p.age) : '');
+        setPatientGender(p.gender);
+        setFromRecord(true);
+      }
+    } else if (clinicalSession?.patientName) {
+      setPatientName(clinicalSession.patientName);
+      setPatientAgeStr(clinicalSession.patientAge ? String(clinicalSession.patientAge) : '');
+      setPatientGender(clinicalSession.patientGender ?? 'Male');
+    }
+  }, [currentPatientId, clinicalSession]);
 
   const grouped: Record<FlagSeverity, RedFlag[]> = { emergency: [], urgent: [], caution: [] };
   for (const f of RED_FLAGS) grouped[f.severity].push(f);
 
+  function handleContinue() {
+    if (!declared) return;
+    const parsedAge = patientAgeStr ? parseInt(patientAgeStr, 10) : undefined;
+    const age = parsedAge && !isNaN(parsedAge) && parsedAge >= 0 && parsedAge <= 120 ? parsedAge : undefined;
+
+    const patientData = {
+      patientName: patientName.trim() || undefined,
+      patientAge: age,
+      patientGender: patientGender as 'Male' | 'Female' | 'Other',
+    };
+
+    if (clinicalSession) {
+      setClinicalSession({ ...clinicalSession, ...patientData });
+    } else {
+      const newSession: ClinicalSession = {
+        id: `sess_${Date.now()}`,
+        started: new Date().toISOString(),
+        complaint: null,
+        branch: null,
+        safety_flags: [],
+        duration: null,
+        causation: [],
+        thermal_state: null,
+        thirst: null,
+        worse_from: [],
+        better_from: [],
+        time_modality: [],
+        mental_state: [],
+        consolation_response: null,
+        laterality: null,
+        food_desires: [],
+        food_aversions: [],
+        concomitants_general: [],
+        branch_answers: {},
+        collected_keynotes: [],
+        ...patientData,
+      };
+      setClinicalSession(newSession);
+    }
+    navigate('complaint');
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+
+      {/* Banner */}
       <div className="jc-section-banner flex items-start gap-4">
         <div className="p-3 bg-white/15 rounded-xl">
           <Shield size={24} className="text-white" />
@@ -39,6 +107,67 @@ export default function Safety({ navigate }: SafetyProps) {
         </div>
       </div>
 
+      {/* Patient details card */}
+      <div className="jc-card space-y-4">
+        <div className="flex items-center gap-2">
+          <User size={16} className="text-jc-purple-600 shrink-0" />
+          <div>
+            <h3 className="font-semibold text-slate-800 text-sm">Patient Details</h3>
+            <p className="text-xs text-slate-400">Who is this assessment for?</p>
+          </div>
+          {fromRecord && (
+            <span className="ml-auto text-xs text-jc-purple-500 bg-jc-purple-50 border border-jc-purple-100 rounded-full px-2 py-0.5">
+              from patient record
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2 sm:col-span-1">
+            <label className="jc-label">Full Name (optional)</label>
+            <input
+              className="jc-input"
+              value={patientName}
+              onChange={e => setPatientName(e.target.value)}
+              placeholder="Patient name"
+            />
+          </div>
+          <div>
+            <label className="jc-label">Age (optional)</label>
+            <input
+              className="jc-input"
+              type="number"
+              min="0"
+              max="120"
+              value={patientAgeStr}
+              onChange={e => setPatientAgeStr(e.target.value)}
+              placeholder="Years"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="jc-label">Gender</label>
+            <div className="flex gap-2">
+              {(['Male', 'Female', 'Other'] as const).map(g => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setPatientGender(g)}
+                  className={[
+                    'flex-1 py-2 rounded-xl border text-sm font-medium transition-all cursor-pointer',
+                    patientGender === g
+                      ? 'border-jc-purple-700 bg-jc-purple-50 text-jc-purple-700'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300',
+                  ].join(' ')}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Red flags grid */}
       <div className="grid grid-cols-3 gap-4">
         {(['emergency', 'urgent', 'caution'] as FlagSeverity[]).map(sev => {
           const cfg = SEV[sev];
@@ -82,7 +211,7 @@ export default function Safety({ navigate }: SafetyProps) {
 
       <div className="flex justify-between">
         <button className="jc-btn-ghost" onClick={() => navigate('home')}>Back to Home</button>
-        <button className="jc-btn-primary" disabled={!declared} onClick={() => navigate('complaint')}>
+        <button className="jc-btn-primary" disabled={!declared} onClick={handleContinue}>
           Confirmed - Continue
         </button>
       </div>

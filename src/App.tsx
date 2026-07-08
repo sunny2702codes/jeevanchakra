@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, lazy, Suspense } from 'react';
+import { createContext, useContext, useState, lazy, Suspense, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { authStore } from './auth/authStore';
+import { preloadKentGrades } from './engines/kentRubricGrades';
 import type { JCScreen, JCSession, ClinicalSession, ScoringResult } from './types';
 
 import Sidebar from './components/Sidebar';
@@ -61,6 +62,8 @@ interface AppContextValue {
   session: JCSession | null;
   currentPatientId: string | null;
   setCurrentPatientId: (id: string | null) => void;
+  addedRubricIds: string[];
+  setAddedRubricIds: (ids: string[]) => void;
 }
 
 export const AppContext = createContext<AppContextValue>({
@@ -72,6 +75,8 @@ export const AppContext = createContext<AppContextValue>({
   session: null,
   currentPatientId: null,
   setCurrentPatientId: () => {},
+  addedRubricIds: [],
+  setAddedRubricIds: () => {},
 });
 
 export function useApp() {
@@ -99,6 +104,13 @@ export default function App() {
   const [clinicalSession, setClinicalSession] = useState<ClinicalSession | null>(null);
   const [clinicalResults, setClinicalResults] = useState<ScoringResult[] | null>(null);
   const [currentPatientId, setCurrentPatientId] = useState<string | null>(null);
+  const [addedRubricIds, setAddedRubricIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (addedRubricIds.length > 0) {
+      preloadKentGrades();
+    }
+  }, [addedRubricIds]);
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
@@ -124,6 +136,7 @@ export default function App() {
     setSession(null);
     setClinicalSession(null);
     setClinicalResults(null);
+    setAddedRubricIds([]);
     navigate('login');
   }
 
@@ -161,6 +174,8 @@ export default function App() {
     session,
     currentPatientId,
     setCurrentPatientId,
+    addedRubricIds,
+    setAddedRubricIds,
   };
 
   // ── Splash ──────────────────────────────────────────────────────────────────

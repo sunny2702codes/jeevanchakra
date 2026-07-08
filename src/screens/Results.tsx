@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Pill, ChevronDown, ChevronUp, Save, RotateCcw, Loader2, Activity, Thermometer, Clock, Printer } from 'lucide-react';
 import { useApp } from '../App';
 import { rank, hasMinimumSet } from '../engines/scoring';
+import { preloadKentGrades } from '../engines/kentRubricGrades';
 import { buildDifferentials } from '../engines/differential';
 import { recommend as dosageRecommend } from '../engines/dosage';
 import { authStore } from '../auth/authStore';
@@ -138,10 +139,12 @@ function getFieldDisplay(field: string): { label: string; color: string } {
 }
 
 export default function Results({ navigate, session: authSession }: ResultsProps) {
-  const { clinicalSession, setClinicalSession, clinicalResults, setClinicalResults } = useApp();
+  const { clinicalSession, setClinicalSession, clinicalResults, setClinicalResults, currentPatientId } = useApp();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [showNotes, setShowNotes] = useState(false);
 
   // C-05: Narrow-down state (reserved for future implementation)
   const [narrowMode, setNarrowMode] = useState(false);
@@ -150,6 +153,12 @@ export default function Results({ navigate, session: authSession }: ResultsProps
   const [narrowAnswers, setNarrowAnswers] = useState<Record<string, string>>({});
   const [narrowRefined, setNarrowRefined] = useState(false);
   const [narrowNoData, setNarrowNoData] = useState(false);
+
+  useEffect(() => {
+    if (clinicalSession?.added_rubric_ids?.length) {
+      preloadKentGrades();
+    }
+  }, [clinicalSession?.added_rubric_ids]);
 
   const results: ScoringResult[] = useMemo(() => {
     if (clinicalResults) return clinicalResults;
@@ -279,6 +288,11 @@ export default function Results({ navigate, session: authSession }: ResultsProps
       session: clinicalSession,
       results,
       topRemedy: results[0]?.remedy_id,
+      notes: notes.trim() || undefined,
+      patientId: currentPatientId ?? undefined,
+      patientName: clinicalSession.patientName,
+      patientAge: clinicalSession.patientAge,
+      patientGender: clinicalSession.patientGender,
     };
     authStore.addCase(authSession.phone, c);
     setSaving(false);
@@ -642,6 +656,26 @@ export default function Results({ navigate, session: authSession }: ResultsProps
           >
             Return to intake to confirm these
           </button>
+        </div>
+      )}
+
+      {/* Session notes input (shown before saving) */}
+      {results.length > 0 && authSession && !saved && (
+        <div className="print:hidden space-y-2">
+          <button
+            className="text-xs text-jc-purple-600 font-semibold cursor-pointer hover:underline"
+            onClick={() => setShowNotes(n => !n)}
+          >
+            {showNotes ? 'Hide notes' : 'Add session notes (optional)'}
+          </button>
+          {showNotes && (
+            <textarea
+              className="jc-input resize-none h-20 text-sm w-full"
+              placeholder="Observations, follow-up plan, remedy selected..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+            />
+          )}
         </div>
       )}
 

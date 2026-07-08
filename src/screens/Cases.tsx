@@ -45,6 +45,8 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'timeline'>('list');
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
+  const [editingNotesText, setEditingNotesText] = useState('');
 
   function toggleExpand(id: string) {
     setExpandedId(prev => (prev === id ? null : id));
@@ -64,6 +66,24 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
     if (expandedId === confirmDeleteId) setExpandedId(null);
     setConfirmDeleteId(null);
     setCases(authStore.getUserCases(session.phone));
+  }
+
+  function handleSaveNotes(caseId: string) {
+    if (!session) return;
+    try {
+      const s = localStorage.getItem(USERS_KEY);
+      if (!s) return;
+      const users = JSON.parse(s) as { phone: string; cases: SavedCase[] }[];
+      const idx = users.findIndex(u => u.phone === session!.phone);
+      if (idx < 0) return;
+      const ci = users[idx].cases.findIndex(c => c.id === caseId);
+      if (ci < 0) return;
+      users[idx].cases[ci].notes = editingNotesText.trim() || undefined;
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+      setCases(authStore.getUserCases(session!.phone));
+    } catch { /* ignore */ }
+    setEditingNotesId(null);
+    setEditingNotesText('');
   }
 
   function handleFollowUp(c: SavedCase) {
@@ -170,8 +190,10 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                             <span className="ml-2 text-xs font-normal text-slate-400">{topScore}%</span>
                           )}
                         </p>
-                        {c.patientName && (
-                          <p className="text-xs text-jc-purple-500 mt-0.5">{c.patientName}</p>
+                        {(c.patientName || c.patientGender) && (
+                          <p className="text-xs text-jc-purple-500 mt-0.5">
+                            {[c.patientName, c.patientAge ? `${c.patientAge}y` : null, c.patientGender].filter(Boolean).join(', ')}
+                          </p>
                         )}
                       </div>
 
@@ -243,6 +265,40 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                             </ol>
                           </div>
                         )}
+
+                        {/* Session Notes */}
+                        <div className="pt-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs text-slate-400 uppercase tracking-wide">Session Notes</p>
+                            {editingNotesId !== c.id && (
+                              <button
+                                className="text-xs text-jc-purple-600 font-semibold cursor-pointer hover:underline"
+                                onClick={() => { setEditingNotesId(c.id); setEditingNotesText(c.notes ?? ''); }}
+                              >
+                                {c.notes ? 'Edit' : 'Add notes'}
+                              </button>
+                            )}
+                          </div>
+                          {editingNotesId === c.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                className="jc-input resize-none h-20 text-sm w-full"
+                                value={editingNotesText}
+                                onChange={e => setEditingNotesText(e.target.value)}
+                                placeholder="Observations, remedy selected, follow-up plan..."
+                                autoFocus
+                              />
+                              <div className="flex gap-2">
+                                <button className="jc-btn-primary text-xs py-1.5 px-3" onClick={() => handleSaveNotes(c.id)}>Save</button>
+                                <button className="jc-btn-ghost text-xs py-1.5 px-3" onClick={() => setEditingNotesId(null)}>Cancel</button>
+                              </div>
+                            </div>
+                          ) : c.notes ? (
+                            <p className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{c.notes}</p>
+                          ) : (
+                            <p className="text-xs text-slate-300 italic">No notes added</p>
+                          )}
+                        </div>
 
                         {/* Follow-up CTA */}
                         <div className="pt-1">

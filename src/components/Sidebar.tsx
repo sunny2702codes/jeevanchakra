@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   House,
@@ -15,9 +15,12 @@ import {
   Crown,
   LogOut,
   FileText,
+  Plus,
+  Check,
 } from 'lucide-react';
 import Logo from './Logo';
 import Modal from './Modal';
+import { useApp } from '../App';
 
 interface SidebarProps {
   currentScreen: string;
@@ -31,6 +34,8 @@ interface NavItem {
   icon: React.ReactNode;
   screen: string;
 }
+
+type RubricEntry = [string, string, string]; // [id, text, category]
 
 const PRIMARY_NAV: NavItem[] = [
   { label: 'Home',               icon: <House size={18} />,         screen: 'home' },
@@ -53,6 +58,33 @@ export default function Sidebar({ currentScreen, navigate, session, onLogout }: 
   const isAdmin = session?.role === 'admin';
   const [helpOpen, setHelpOpen]       = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
+
+  const { addedRubricIds, setAddedRubricIds } = useApp();
+
+  const [rubricQuery, setRubricQuery]     = useState('');
+  const [rubricData, setRubricData]       = useState<RubricEntry[] | null>(null);
+  const [rubricLoading, setRubricLoading] = useState(false);
+
+  async function loadRubrics() {
+    if (rubricData !== null || rubricLoading) return;
+    setRubricLoading(true);
+    try {
+      const res = await fetch('/data/kent_rubric_texts.json');
+      const data: RubricEntry[] = await res.json();
+      setRubricData(data);
+    } catch {
+      setRubricData([]);
+    }
+    setRubricLoading(false);
+  }
+
+  const rubricResults = useMemo(() => {
+    if (!rubricData || !rubricQuery.trim()) return [];
+    const q = rubricQuery.toLowerCase();
+    return rubricData
+      .filter(([, text]) => text.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [rubricData, rubricQuery]);
 
   function itemClass(screen: string) {
     const isActive = currentScreen === screen;
@@ -98,6 +130,68 @@ export default function Sidebar({ currentScreen, navigate, session, onLogout }: 
             </motion.div>
           ))}
         </nav>
+
+        {/* Rubric search panel - only visible during intake */}
+        {currentScreen === 'intake' && (
+          <div className="px-0 mt-3 mb-1">
+            <p className="px-1 mb-1.5 text-[10px] font-semibold tracking-widest uppercase" style={{ color: '#FCD34D' }}>
+              Add Rubric
+            </p>
+            <div className="rounded-xl p-2.5 space-y-2" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              {addedRubricIds.length > 0 && (
+                <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  {addedRubricIds.length} rubric{addedRubricIds.length !== 1 ? 's' : ''} added
+                </p>
+              )}
+              <div className="relative">
+                <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.4)' }} />
+                <input
+                  className="w-full rounded-lg py-1.5 pl-6 pr-2 text-xs text-white outline-none"
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                  }}
+                  placeholder="Search rubric..."
+                  value={rubricQuery}
+                  onChange={e => { setRubricQuery(e.target.value); void loadRubrics(); }}
+                  onFocus={() => void loadRubrics()}
+                />
+              </div>
+              {rubricLoading && (
+                <p className="text-[10px] text-center py-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Loading...</p>
+              )}
+              {rubricQuery.trim() && rubricResults.length === 0 && !rubricLoading && (
+                <p className="text-[10px] text-center py-1" style={{ color: 'rgba(255,255,255,0.4)' }}>No matches</p>
+              )}
+              {rubricResults.map(([id, text, cat]) => {
+                const isAdded = addedRubricIds.includes(id);
+                return (
+                  <div key={id} className="flex items-start gap-1.5 rounded-lg px-1.5 py-1" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] leading-snug text-white/80 truncate">{text}</p>
+                      <p className="text-[9px]" style={{ color: 'rgba(255,255,255,0.35)' }}>{cat}</p>
+                    </div>
+                    <button
+                      className="shrink-0 rounded p-0.5 transition-colors cursor-pointer"
+                      style={{ background: isAdded ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.1)' }}
+                      onClick={() => {
+                        if (!isAdded) {
+                          setAddedRubricIds([...addedRubricIds, id]);
+                        }
+                      }}
+                      title={isAdded ? 'Added' : 'Add to session'}
+                    >
+                      {isAdded
+                        ? <Check size={11} className="text-jc-purple-300" />
+                        : <Plus size={11} style={{ color: 'rgba(255,255,255,0.6)' }} />
+                      }
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mx-3 my-3" style={{ height: 1, background: 'rgba(255,255,255,0.08)' }} />
 

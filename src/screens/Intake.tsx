@@ -207,7 +207,7 @@ const STEPS = ['Safety', 'Complaint', 'Intake', 'Analysis', 'Results'];
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function Intake({ navigate }: IntakeProps) {
-  const { clinicalSession, setClinicalSession, setClinicalResults } = useApp();
+  const { clinicalSession, setClinicalSession, setClinicalResults, addedRubricIds } = useApp();
 
   const mainQuestions = useMemo(
     () => getQuestionsForSession(clinicalSession?.branch ?? null),
@@ -296,7 +296,7 @@ export default function Intake({ navigate }: IntakeProps) {
       setKeynoteQuestions(probes);
       setStep(mainQuestions.length);
     } else {
-      setClinicalSession(updatedSession);
+      setClinicalSession({ ...updatedSession, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
       setClinicalResults(null);
       navigate('results');
     }
@@ -323,7 +323,7 @@ export default function Intake({ navigate }: IntakeProps) {
     if (step === mainQuestions.length - 1 && keynoteQuestions.length === 0) {
       finishIntake(updated);
     } else if (isLast) {
-      setClinicalSession(updated);
+      setClinicalSession({ ...updated, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
       setClinicalResults(null);
       navigate('results');
     } else {
@@ -345,18 +345,19 @@ export default function Intake({ navigate }: IntakeProps) {
   }
 
   function handleSkip() {
+    const withRubrics = { ...session, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined };
     if (showConstitutionalPrompt) {
-      setClinicalSession(session);
+      setClinicalSession(withRubrics);
       setClinicalResults(null);
       navigate('results');
       return;
     }
     if (step === mainQuestions.length - 1 && keynoteQuestions.length === 0) {
-      setClinicalSession(session);
+      setClinicalSession(withRubrics);
       setClinicalResults(null);
       navigate('results');
     } else if (isLast) {
-      setClinicalSession(session);
+      setClinicalSession(withRubrics);
       setClinicalResults(null);
       navigate('results');
     } else {
@@ -365,7 +366,7 @@ export default function Intake({ navigate }: IntakeProps) {
   }
 
   function handleEarlyResults() {
-    setClinicalSession(session);
+    setClinicalSession({ ...session, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
     setClinicalResults(null);
     navigate('results');
   }
@@ -414,8 +415,13 @@ export default function Intake({ navigate }: IntakeProps) {
           </h2>
           <p className="text-white/70 text-sm mt-1">
             {showConstitutionalPrompt ? 'Optional constitutional profile' : qLabel}
-            {clinicalSession?.complaint ? ` — ${clinicalSession.complaint}` : ''}
+            {clinicalSession?.complaint ? ` - ${clinicalSession.complaint}` : ''}
           </p>
+          {addedRubricIds.length > 0 && (
+            <p className="text-jc-gold-300 text-xs mt-0.5 font-medium">
+              {addedRubricIds.length} rubric{addedRubricIds.length !== 1 ? 's' : ''} added via sidebar
+            </p>
+          )}
         </div>
       </div>
 
@@ -515,7 +521,7 @@ export default function Intake({ navigate }: IntakeProps) {
             <button
               className="jc-btn-secondary flex-1"
               onClick={() => {
-                setClinicalSession(session);
+                setClinicalSession({ ...session, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
                 setClinicalResults(null);
                 navigate('results');
               }}

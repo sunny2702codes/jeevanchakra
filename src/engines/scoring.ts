@@ -1,5 +1,6 @@
 import { REMEDIES } from '../data/remedies.js';
 import { CONSTITUTIONAL } from '../data/constitutional.js';
+import { getKentGrades, isKentGradesReady } from './kentRubricGrades';
 import type { ClinicalSession, ScoringResult, ScoreTier, Remedy } from '../types';
 
 interface ConstitutionalProfile {
@@ -315,6 +316,22 @@ function scoreRemedy(remedy: Remedy, session: ClinicalSession): { result: Scorin
         }
       });
     });
+  }
+
+  // KENT RUBRIC BONUSES (from manually added rubrics via sidebar search)
+  const addedRubricIds = session.added_rubric_ids ?? [];
+  if (addedRubricIds.length > 0 && isKentGradesReady()) {
+    for (const rubricId of addedRubricIds) {
+      const rubricGrades = getKentGrades(rubricId);
+      maxPossible += WEIGHTS.particular * 3;
+      const hit = rubricGrades.find(([rId]) => rId === remedy.id);
+      if (hit) {
+        const g = hit[1];
+        const pts = WEIGHTS.particular * g;
+        raw += pts;
+        matched.push({ field: 'Kent rubric', value: rubricId, weight: WEIGHTS.particular, kent_grade: g, points: pts });
+      }
+    }
   }
 
   const normalised = maxPossible > 0 ? Math.max(0, (raw / maxPossible) * 100) : 0;
