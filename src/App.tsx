@@ -16,15 +16,22 @@ import ResultsScreen from './screens/Results';
 import CasesScreen from './screens/Cases';
 import LibraryScreen from './screens/Library';
 import AdminScreen from './screens/Admin';
+import CompareScreen from './screens/CompareRemedies';
+import ConstitutionalScreen from './screens/ConstitutionalType';
+import RubricSearchScreen from './screens/RubricSearch';
+import PrivacyPolicyScreen from './screens/PrivacyPolicy';
 
 function HaltScreen({ navigate }: { navigate: (s: string) => void }) {
   return (
     <div className="max-w-2xl mx-auto flex flex-col items-center gap-6 py-16 text-center">
       <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
-        <span className="text-4xl">🚨</span>
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-red-700">Emergency: Stop Here</h2>
+        <h2 className="text-2xl font-bold text-red-700">Emergency - Stop Here</h2>
         <p className="text-slate-600 mt-3 leading-relaxed max-w-lg">
           An emergency pattern has been identified. Please call emergency services or go to the nearest hospital immediately.
           Homeopathy cannot substitute for emergency medical care.
@@ -34,7 +41,7 @@ function HaltScreen({ navigate }: { navigate: (s: string) => void }) {
         Call Emergency (112)
       </a>
       <button className="jc-btn-ghost text-slate-400 text-sm" onClick={() => navigate('safety')}>
-        Go back to safety screen
+        Back to safety screen
       </button>
     </div>
   );
@@ -125,10 +132,14 @@ export default function App() {
       case 'complaint':  return <ComplaintScreen navigate={navigate} />;
       case 'intake':     return <IntakeScreen navigate={navigate} />;
       case 'results':    return <ResultsScreen navigate={navigate} session={session} />;
-      case 'cases':      return <CasesScreen session={session} navigate={navigate} />;
-      case 'library':    return <LibraryScreen navigate={navigate} />;
-      case 'admin':      return <AdminScreen session={session} navigate={navigate} />;
-      default:           return <HomeScreen session={session} navigate={navigate} />;
+      case 'cases':          return <CasesScreen session={session} navigate={navigate} />;
+      case 'library':        return <LibraryScreen navigate={navigate} />;
+      case 'admin':          return <AdminScreen session={session} navigate={navigate} />;
+      case 'compare':        return <CompareScreen navigate={navigate} />;
+      case 'constitutional': return <ConstitutionalScreen navigate={navigate} session={clinicalSession} />;
+      case 'rubric-search':  return <RubricSearchScreen navigate={navigate} />;
+      case 'privacy':        return <PrivacyPolicyScreen navigate={navigate} />;
+      default:               return <HomeScreen session={session} navigate={navigate} />;
     }
   }
 
@@ -183,7 +194,7 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Navbar session={session} navigate={navigate} />
 
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-6 bg-jc-purple-50/40">
             <AnimatePresence mode="wait">
               <motion.div
                 key={screen}

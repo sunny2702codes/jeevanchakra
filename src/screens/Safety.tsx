@@ -27,13 +27,13 @@ export default function Safety({ navigate }: SafetyProps) {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="jc-section-banner flex items-start gap-4">
-        <div className="p-3 bg-jc-purple-100 rounded-xl">
-          <Shield size={24} className="text-jc-purple-700" />
+        <div className="p-3 bg-white/15 rounded-xl">
+          <Shield size={24} className="text-white" />
         </div>
         <div>
-          <div className="text-xs font-semibold text-jc-purple-500 uppercase tracking-widest mb-1">Step 1 of 5</div>
-          <h2 className="text-xl font-bold text-slate-800">Safety Screen</h2>
-          <p className="text-slate-500 text-sm mt-1">
+          <div className="text-xs font-semibold text-jc-gold-300 uppercase tracking-widest mb-1">Step 1 of 5</div>
+          <h2 className="text-xl font-bold text-white">Safety Screen</h2>
+          <p className="text-white/70 text-sm mt-1">
             Review all {RED_FLAGS.length} patterns. If any apply to this patient, refer for emergency care immediately.
           </p>
         </div>

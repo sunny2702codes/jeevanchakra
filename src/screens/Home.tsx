@@ -43,7 +43,7 @@ export default function Home({ session, navigate }: HomeProps) {
   ];
 
   const quickActions = [
-    { label: 'New Assessment', desc: 'Start symptom interview', icon: <ClipboardEdit size={24} />, screen: 'safety', bg: 'bg-jc-purple-700', text: 'text-white' },
+    { label: 'New Assessment', desc: 'Begin a symptom assessment', icon: <ClipboardEdit size={24} />, screen: 'safety', bg: 'bg-jc-purple-700', text: 'text-white' },
     { label: 'Search Symptoms', desc: 'Find Kent rubrics', icon: <Search size={24} />, screen: 'rubric-search', bg: 'bg-jc-gold-500', text: 'text-white' },
     { label: 'Remedy Library', desc: 'Browse 700 remedies', icon: <BookOpen size={24} />, screen: 'library', bg: 'bg-emerald-600', text: 'text-white' },
   ];
@@ -52,7 +52,7 @@ export default function Home({ session, navigate }: HomeProps) {
     <div className="max-w-5xl mx-auto space-y-6">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-2xl font-bold text-slate-800">{getGreeting()}, {getFirstName(session?.name ?? 'there')}!</h1>
-        <p className="text-slate-500 mt-1">Here is your homeopathy overview for today.</p>
+        <p className="text-slate-500 mt-1">Your classical homeopathy reference dashboard.</p>
       </motion.div>
 
       <div className="grid grid-cols-3 gap-4">

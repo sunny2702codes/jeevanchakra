@@ -40,10 +40,10 @@ export const authStore = {
     return getUsers().find(u => u.phone === phone) ?? null;
   },
 
-  register(phone: string, name: string, gender: JCUser['gender'], city: string): boolean {
+  register(phone: string, name: string, gender: JCUser['gender'], city: string, dob?: string): boolean {
     const users = getUsers();
     if (users.some(u => u.phone === phone)) return false;
-    users.push({ phone, name, gender, city, role: 'user', cases: [] });
+    users.push({ phone, name, gender, city, dob, role: 'user', cases: [] });
     saveUsers(users);
     return true;
   },
@@ -53,7 +53,6 @@ export const authStore = {
   },
 
   login(phone: string): JCSession | null {
-    // For admin: auto-create if missing
     let user = this.findUser(phone);
     if (!user && phone === '9811067812') {
       const users = getUsers();
@@ -95,5 +94,24 @@ export const authStore = {
     const users = getUsers();
     const totalCases = users.reduce((sum, u) => sum + (u.cases?.length ?? 0), 0);
     return { totalUsers: users.length, totalCases };
+  },
+
+  deleteUserData(phone: string): boolean {
+    const users = getUsers();
+    const idx = users.findIndex(u => u.phone === phone);
+    if (idx < 0 || users[idx].role === 'admin') return false;
+    users.splice(idx, 1);
+    saveUsers(users);
+    this.clearSession();
+    return true;
+  },
+
+  withdrawConsent(phone: string): void {
+    const users = getUsers();
+    const idx = users.findIndex(u => u.phone === phone);
+    if (idx >= 0) {
+      (users[idx] as JCUser & { consentGiven?: boolean }).consentGiven = false;
+      saveUsers(users);
+    }
   },
 };

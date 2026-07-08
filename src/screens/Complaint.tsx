@@ -60,13 +60,13 @@ export default function Complaint({ navigate }: ComplaintProps) {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="jc-section-banner flex items-start gap-4">
-        <div className="p-3 bg-jc-purple-100 rounded-xl">
-          <ClipboardList size={24} className="text-jc-purple-700" />
+        <div className="p-3 bg-white/15 rounded-xl">
+          <ClipboardList size={24} className="text-white" />
         </div>
         <div>
-          <div className="text-xs font-semibold text-jc-purple-500 uppercase tracking-widest mb-1">Step 2 of 5</div>
-          <h2 className="text-xl font-bold text-slate-800">Chief Complaint</h2>
-          <p className="text-slate-500 text-sm mt-1">Select the category that best describes the main problem today.</p>
+          <div className="text-xs font-semibold text-jc-gold-300 uppercase tracking-widest mb-1">Step 2 of 5</div>
+          <h2 className="text-xl font-bold text-white">Chief Complaint</h2>
+          <p className="text-white/70 text-sm mt-1">Select the category that best describes the main problem today.</p>
         </div>
       </div>
 

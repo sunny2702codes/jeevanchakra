@@ -8,10 +8,10 @@ import {
   GitCompare,
   User,
   HelpCircle,
-  Settings,
   ShieldCheck,
   Crown,
   LogOut,
+  FileText,
 } from 'lucide-react';
 import Logo from './Logo';
 
@@ -32,49 +32,56 @@ const PRIMARY_NAV: NavItem[] = [
   { label: 'Home',               icon: <House size={18} />,         screen: 'home' },
   { label: 'New Assessment',     icon: <ClipboardEdit size={18} />, screen: 'safety' },
   { label: 'Search Symptoms',    icon: <Search size={18} />,        screen: 'rubric-search' },
-  { label: 'Homeopathy Library', icon: <BookOpen size={18} />,      screen: 'library' },
+  { label: 'Remedy Library',     icon: <BookOpen size={18} />,      screen: 'library' },
   { label: 'My Health Journey',  icon: <Calendar size={18} />,      screen: 'cases' },
   { label: 'Compare Remedies',   icon: <GitCompare size={18} />,    screen: 'compare' },
   { label: 'Constitutional',     icon: <User size={18} />,          screen: 'constitutional' },
 ];
 
+const SECONDARY_NAV: NavItem[] = [
+  { label: 'Privacy Policy',     icon: <FileText size={16} />,      screen: 'privacy' },
+  { label: 'Help and Support',   icon: <HelpCircle size={16} />,    screen: '__help' },
+];
+
 export default function Sidebar({ currentScreen, navigate, session, onLogout }: SidebarProps) {
   const isAdmin = session?.role === 'admin';
 
-  const itemBase =
-    'flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-colors rounded-lg';
-  const activeClass =
-    'bg-jc-purple-100 text-jc-purple-700 font-semibold';
-  const inactiveClass =
-    'text-slate-600 hover:bg-slate-50';
-
-  function navClass(screen: string) {
-    return `${itemBase} ${currentScreen === screen ? activeClass : inactiveClass}`;
+  function itemClass(screen: string) {
+    const isActive = currentScreen === screen;
+    const base = 'flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-all rounded-lg';
+    if (isActive) {
+      return `${base} bg-white/15 text-white font-semibold border-l-2 border-jc-gold-500 pl-[10px]`;
+    }
+    return `${base} text-white/65 hover:bg-white/10 hover:text-white`;
   }
 
   return (
     <aside
-      className="flex flex-col border-r border-slate-100 bg-white h-full overflow-hidden"
-      style={{ width: 220, minWidth: 220, maxWidth: 220 }}
+      className="flex flex-col h-full overflow-hidden"
+      style={{
+        width: 224, minWidth: 224, maxWidth: 224,
+        background: 'linear-gradient(170deg, #1e0a3c 0%, #3b1162 55%, #2d1461 100%)',
+      }}
     >
       {/* Logo */}
       <div className="px-4 pt-5 pb-4 shrink-0">
-        <Logo size="sidebar" showText={true} />
+        <Logo size="sidebar" showText dark />
       </div>
 
-      {/* Scrollable nav area */}
+      {/* Divider */}
+      <div className="mx-4 mb-3" style={{ height: 1, background: 'rgba(255,255,255,0.08)' }} />
+
+      {/* Scrollable nav */}
       <div className="flex-1 overflow-y-auto px-3 pb-3">
-        {/* Main menu label */}
-        <p className="px-3 mb-2 text-[10px] font-semibold tracking-widest text-slate-400 uppercase">
+        <p className="px-3 mb-2 text-[10px] font-semibold tracking-widest uppercase" style={{ color: '#FCD34D' }}>
           Main Menu
         </p>
 
-        {/* Primary nav */}
         <nav className="space-y-0.5">
           {PRIMARY_NAV.map((item) => (
             <motion.div
               key={item.screen}
-              className={navClass(item.screen)}
+              className={itemClass(item.screen)}
               onClick={() => navigate(item.screen)}
               whileTap={{ scale: 0.97 }}
             >
@@ -84,37 +91,34 @@ export default function Sidebar({ currentScreen, navigate, session, onLogout }: 
           ))}
         </nav>
 
-        {/* Divider */}
-        <hr className="my-3 border-slate-100" />
+        <div className="mx-3 my-3" style={{ height: 1, background: 'rgba(255,255,255,0.08)' }} />
 
-        {/* Secondary nav */}
         <nav className="space-y-0.5">
-          <motion.div
-            className={`${itemBase} text-slate-400 hover:bg-slate-50`}
-            onClick={() => alert('Help and Support coming soon.')}
-            whileTap={{ scale: 0.97 }}
-          >
-            <HelpCircle size={16} />
-            <span className="text-xs">Help and Support</span>
-          </motion.div>
-
-          <motion.div
-            className={`${itemBase} text-slate-400 hover:bg-slate-50`}
-            onClick={() => alert('Settings coming soon.')}
-            whileTap={{ scale: 0.97 }}
-          >
-            <Settings size={16} />
-            <span className="text-xs">Settings</span>
-          </motion.div>
+          {SECONDARY_NAV.map((item) => (
+            <motion.div
+              key={item.screen}
+              className={itemClass(item.screen)}
+              onClick={() => {
+                if (item.screen === '__help') {
+                  alert('Help and Support coming soon.');
+                } else {
+                  navigate(item.screen);
+                }
+              }}
+              whileTap={{ scale: 0.97 }}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </motion.div>
+          ))}
         </nav>
 
-        {/* Admin Panel (admin only) */}
         {isAdmin && (
           <>
-            <hr className="my-3 border-slate-100" />
+            <div className="mx-3 my-3" style={{ height: 1, background: 'rgba(255,255,255,0.08)' }} />
             <nav>
               <motion.div
-                className={navClass('admin')}
+                className={itemClass('admin')}
                 onClick={() => navigate('admin')}
                 whileTap={{ scale: 0.97 }}
               >
@@ -126,35 +130,37 @@ export default function Sidebar({ currentScreen, navigate, session, onLogout }: 
         )}
       </div>
 
-      {/* Bottom section */}
-      <div className="shrink-0 px-3 pb-4 space-y-3">
-        {/* Go Premium widget OR Admin badge */}
+      {/* Bottom */}
+      <div className="shrink-0 px-3 pb-4 space-y-2">
         {!isAdmin ? (
-          <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2">
+          <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <div className="flex items-center gap-2">
-              <Crown size={16} className="text-jc-gold-500" />
-              <span className="text-sm font-bold text-jc-purple-700">Go Premium</span>
+              <Crown size={15} className="text-jc-gold-400" />
+              <span className="text-sm font-bold text-jc-gold-400">Go Premium</span>
             </div>
-            <p className="text-xs text-slate-400 leading-snug">
+            <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.5)' }}>
               Unlock advanced features and personalized insights.
             </p>
             <button
-              className="w-full rounded-lg bg-jc-purple-600 py-1.5 text-xs font-semibold text-white hover:bg-jc-purple-700 transition-colors"
+              className="w-full rounded-lg py-1.5 text-xs font-semibold text-jc-purple-900 transition-colors cursor-pointer"
+              style={{ background: 'linear-gradient(90deg, #FCD34D, #F59E0B)' }}
               onClick={() => alert('Coming soon.')}
             >
               Upgrade Now
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 rounded-lg bg-jc-purple-50 px-3 py-2">
-            <ShieldCheck size={14} className="text-jc-purple-600" />
-            <span className="text-xs font-semibold text-jc-purple-700">Admin Mode</span>
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+            <ShieldCheck size={14} className="text-jc-gold-400" />
+            <span className="text-xs font-semibold text-jc-gold-400">Admin Mode</span>
           </div>
         )}
 
-        {/* Logout */}
         <motion.button
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors"
+          style={{ color: 'rgba(255,255,255,0.6)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)'; (e.currentTarget as HTMLButtonElement).style.background = ''; }}
           onClick={onLogout}
           whileTap={{ scale: 0.97 }}
         >

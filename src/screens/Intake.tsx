@@ -162,15 +162,15 @@ export default function Intake({ navigate }: IntakeProps) {
 
       {/* Banner */}
       <div className="jc-section-banner flex items-start gap-4">
-        <div className="p-3 bg-jc-purple-100 rounded-xl">
-          <MessageSquare size={24} className="text-jc-purple-700" />
+        <div className="p-3 bg-white/15 rounded-xl">
+          <MessageSquare size={24} className="text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-jc-purple-500 uppercase tracking-widest mb-1">Step 3 of 5</div>
-          <h2 className="text-xl font-bold text-slate-800">Symptom Interview</h2>
-          <p className="text-slate-500 text-sm mt-1">
+          <div className="text-xs font-semibold text-jc-gold-300 uppercase tracking-widest mb-1">Step 3 of 5</div>
+          <h2 className="text-xl font-bold text-white">Symptom Interview</h2>
+          <p className="text-white/70 text-sm mt-1">
             Question {step + 1} of {questions.length}
-            {clinicalSession?.complaint ? ` — ${clinicalSession.complaint}` : ''}
+            {clinicalSession?.complaint ? ` - ${clinicalSession.complaint}` : ''}
           </p>
         </div>
       </div>

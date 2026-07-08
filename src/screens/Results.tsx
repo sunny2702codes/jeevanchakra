@@ -82,10 +82,10 @@ export default function Results({ navigate, session: authSession }: ResultsProps
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="jc-section-banner flex items-start gap-4">
-          <div className="p-3 bg-jc-purple-100 rounded-xl"><Pill size={24} className="text-jc-purple-700" /></div>
+          <div className="p-3 bg-white/15 rounded-xl"><Pill size={24} className="text-white" /></div>
           <div>
-            <div className="text-xs font-semibold text-jc-purple-500 uppercase tracking-widest mb-1">Step 5 of 5</div>
-            <h2 className="text-xl font-bold text-slate-800">Remedy Considerations</h2>
+            <div className="text-xs font-semibold text-jc-gold-300 uppercase tracking-widest mb-1">Step 5 of 5</div>
+            <h2 className="text-xl font-bold text-white">Remedy Considerations</h2>
           </div>
         </div>
         <div className="jc-card bg-amber-50 border-amber-200">
@@ -109,14 +109,14 @@ export default function Results({ navigate, session: authSession }: ResultsProps
     <div className="max-w-4xl mx-auto space-y-6">
 
       <div className="jc-section-banner flex items-start gap-4">
-        <div className="p-3 bg-jc-purple-100 rounded-xl"><Pill size={24} className="text-jc-purple-700" /></div>
+        <div className="p-3 bg-white/15 rounded-xl"><Pill size={24} className="text-white" /></div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-jc-purple-500 uppercase tracking-widest mb-1">Step 5 of 5</div>
-          <h2 className="text-xl font-bold text-slate-800">Remedy Considerations</h2>
+          <div className="text-xs font-semibold text-jc-gold-300 uppercase tracking-widest mb-1">Step 5 of 5</div>
+          <h2 className="text-xl font-bold text-white">Remedy Considerations</h2>
           <p className="text-slate-500 text-sm mt-1">
             {results.length > 0
-              ? `${results.length} candidates ranked by weighted repertorization. Complaint: ${clinicalSession.complaint ?? 'General'}.`
-              : 'No remedies reached the minimum 30% threshold for this symptom picture.'}
+              ? 'Symptom patterns identified for consideration. Please discuss with a qualified homeopathic practitioner before taking any remedy.'
+              : 'No symptom pattern matches were found above the minimum threshold.'}
           </p>
         </div>
       </div>
@@ -125,12 +125,20 @@ export default function Results({ navigate, session: authSession }: ResultsProps
       {dosage && results.length > 0 && (
         <div className="jc-card border-jc-purple-100 bg-jc-purple-50 text-sm space-y-1">
           <p className="font-semibold text-jc-purple-800">
-            Suggested potency for {results[0].remedy_id}: {dosage.potency}
+            Consider discussing {results[0].latin_name ?? results[0].remedy_id} with a qualified homeopathic practitioner. A potency of {dosage.potency} may be relevant to this symptom picture.
           </p>
           <p className="text-jc-purple-700 text-xs leading-relaxed">{dosage.potency_note}</p>
           <p className="text-xs text-slate-500 mt-1">
-            Stop rule: {dosage.stop_rule}
+            General stop guidance: {dosage.stop_rule}
           </p>
+        </div>
+      )}
+
+      {/* Compliance disclaimer */}
+      {results.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 leading-relaxed">
+          <span className="font-bold">Important:</span>{' '}
+          These are symptom pattern considerations based on classical homeopathic repertorization, not medical diagnoses. The remedies shown resemble symptom pictures commonly evaluated in homeopathic practice. Please discuss any remedy with a qualified homeopathic practitioner before use.
         </div>
       )}
 
@@ -155,7 +163,7 @@ export default function Results({ navigate, session: authSession }: ResultsProps
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-slate-800 text-sm">{r.latin_name ?? r.remedy_id}</div>
-                <div className="text-xs text-slate-400">{r.matches.length} indicators matched</div>
+                <div className="text-xs text-slate-400">{r.matches.length} symptom indicators</div>
               </div>
               <span className={TIER_BADGE[r.tier] ?? 'jc-badge-possible'}>{r.tier}</span>
               <span className="text-xl font-bold text-jc-purple-700 w-14 text-right">{r.normalised_score}%</span>

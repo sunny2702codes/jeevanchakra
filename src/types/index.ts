@@ -4,8 +4,11 @@ export interface JCUser {
   name: string;
   gender: 'Male' | 'Female' | 'Other';
   city: string;
+  dob?: string;
   role: 'admin' | 'user';
   cases: SavedCase[];
+  consentGiven?: boolean;
+  consentDate?: string;
 }
 
 export interface JCSession {
@@ -18,7 +21,8 @@ export interface JCSession {
 export type JCScreen =
   | 'splash' | 'login' | 'register' | 'otp'
   | 'home' | 'safety' | 'halt' | 'complaint' | 'intake' | 'results'
-  | 'cases' | 'library' | 'admin' | 'constitutional' | 'compare' | 'rubric-search';
+  | 'cases' | 'library' | 'admin'
+  | 'constitutional' | 'compare' | 'rubric-search' | 'privacy';
 
 // ── Remedy schema (matches hdss/data/remedies.js) ─────────────────
 export type ThermalState = 'chilly' | 'warm' | 'variable' | 'hot' | 'cold';
