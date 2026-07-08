@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { MessageSquare, ChevronLeft, ChevronRight, Check, Zap, TrendingUp } from 'lucide-react';
+import { MessageSquare, ChevronLeft, ChevronRight, Check, Zap, TrendingUp, Search, X } from 'lucide-react';
 import { useApp } from '../App';
 import { INTAKE_POOLS } from '../data/intake.js';
 import { REMEDIES } from '../data/remedies.js';
@@ -109,7 +109,62 @@ function generateKeynoteProbes(session: ClinicalSession): IntakeQuestion[] {
     }
     if (probes.length >= 6) break;
   }
+
+  // C-08: Add grade-2 keynotes unique to top remedy when top-2 are within 5 points
+  const top2 = top.slice(0, 2);
+  if (top2.length === 2 && (top2[0].normalised_score - top2[1].normalised_score) <= 5) {
+    const rm1 = allRemedies.find(r => r.id === top2[0].remedy_id);
+    const rm2 = allRemedies.find(r => r.id === top2[1].remedy_id);
+    if (rm1 && rm2) {
+      const rm2Keywords = new Set((rm2.keynotes ?? []).map((k: { symptom: string; grade: number }) => k.symptom));
+      const grade2Unique = (rm1.keynotes ?? []).filter(
+        (k: { symptom: string; grade: number }) =>
+          k.grade === 2 &&
+          !rm2Keywords.has(k.symptom) &&
+          !seen.has(k.symptom) &&
+          !alreadyCaptured.has(k.symptom),
+      );
+      for (const k of grade2Unique.slice(0, 3)) {
+        const prompt = probeBank[k.symptom];
+        if (!prompt) continue;
+        if (probes.length >= 9) break;
+        seen.add(k.symptom);
+        probes.push({
+          id: `probe_${k.symptom}`,
+          prompt,
+          type: 'single',
+          session_field: 'collected_keynotes',
+          options: [
+            { value: k.symptom, label: 'Yes, this applies' },
+            { value: '_no', label: 'No, this does not apply' },
+          ],
+        });
+      }
+    }
+  }
+
   return probes;
+}
+
+// C-01: Search across remedy vocabulary (worse_from, better_from, keynote symptoms)
+function searchSymptomVocab(query: string): string[] {
+  if (!query || query.length < 2) return [];
+  const q = query.toLowerCase().replace(/\s+/g, '_');
+  const found = new Set<string>();
+  const allRem = REMEDIES as unknown as Remedy[];
+  for (const rem of allRem) {
+    for (const v of rem.worse_from ?? []) {
+      if (v.includes(q) || v.replace(/_/g, ' ').includes(query.toLowerCase())) found.add(v);
+    }
+    for (const v of rem.better_from ?? []) {
+      if (v.includes(q) || v.replace(/_/g, ' ').includes(query.toLowerCase())) found.add(v);
+    }
+    for (const k of (rem.keynotes ?? []) as Array<{ symptom: string; grade: number }>) {
+      if (k.symptom.includes(q) || k.symptom.replace(/_/g, ' ').includes(query.toLowerCase())) found.add(k.symptom);
+    }
+    if (found.size >= 50) break;
+  }
+  return Array.from(found).slice(0, 8);
 }
 
 function applyAnswer(
@@ -193,6 +248,12 @@ export default function Intake({ navigate }: IntakeProps) {
       collected_keynotes: [],
     },
   );
+
+  // C-01: Symptom search widget state
+  const [showSymptomSearch, setShowSymptomSearch] = useState(false);
+  const [symptomSearch, setSymptomSearch] = useState('');
+  const [symptomResults, setSymptomResults] = useState<string[]>([]);
+  const [addedSymptoms, setAddedSymptoms] = useState<string[]>([]);
 
   const allQuestions = useMemo(() => [...mainQuestions, ...keynoteQuestions], [mainQuestions, keynoteQuestions]);
   const question = allQuestions[step];
@@ -307,6 +368,31 @@ export default function Intake({ navigate }: IntakeProps) {
     setClinicalSession(session);
     setClinicalResults(null);
     navigate('results');
+  }
+
+  // C-01: Symptom search handlers
+  function handleSymptomSearchChange(value: string) {
+    setSymptomSearch(value);
+    setSymptomResults(searchSymptomVocab(value));
+  }
+
+  function addSymptom(sym: string) {
+    if (addedSymptoms.includes(sym)) return;
+    setAddedSymptoms(prev => [...prev, sym]);
+    setSession(s => ({
+      ...s,
+      collected_keynotes: [...new Set([...(s.collected_keynotes ?? []), sym])],
+    }));
+    setSymptomSearch('');
+    setSymptomResults([]);
+  }
+
+  function removeSymptom(sym: string) {
+    setAddedSymptoms(prev => prev.filter(s => s !== sym));
+    setSession(s => ({
+      ...s,
+      collected_keynotes: (s.collected_keynotes ?? []).filter(k => k !== sym),
+    }));
   }
 
   const qLabel = inKeynotePhase
@@ -474,6 +560,82 @@ export default function Intake({ navigate }: IntakeProps) {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* C-01: Symptom search widget — hidden during keynote phase and constitutional prompt */}
+      {!inKeynotePhase && !showConstitutionalPrompt && question && (
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <button
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-medium text-slate-600 cursor-pointer"
+            onClick={() => setShowSymptomSearch(v => !v)}
+          >
+            <span className="flex items-center gap-2">
+              <Search size={14} className="text-slate-400" />
+              Search additional symptoms
+            </span>
+            <span className="text-xs text-slate-400">{showSymptomSearch ? 'Hide' : 'Show'}</span>
+          </button>
+
+          {showSymptomSearch && (
+            <div className="px-4 pb-4 pt-3 bg-white space-y-3">
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={symptomSearch}
+                  onChange={e => handleSymptomSearchChange(e.target.value)}
+                  placeholder="Type a symptom (e.g. motion, cold, grief)..."
+                  className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-jc-purple-400 focus:ring-1 focus:ring-jc-purple-200 bg-slate-50"
+                />
+              </div>
+
+              {symptomResults.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-400 font-medium">Tap to add:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {symptomResults.map(sym => (
+                      <button
+                        key={sym}
+                        onClick={() => addSymptom(sym)}
+                        disabled={addedSymptoms.includes(sym)}
+                        className={[
+                          'px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer',
+                          addedSymptoms.includes(sym)
+                            ? 'bg-jc-purple-100 border-jc-purple-300 text-jc-purple-600 opacity-50 cursor-default'
+                            : 'bg-white border-slate-200 text-slate-600 hover:border-jc-purple-400 hover:bg-jc-purple-50',
+                        ].join(' ')}
+                      >
+                        {sym.replace(/_/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {addedSymptoms.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-400 font-medium">Added:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {addedSymptoms.map(sym => (
+                      <span
+                        key={sym}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-jc-purple-50 border border-jc-purple-200 text-jc-purple-700"
+                      >
+                        {sym.replace(/_/g, ' ')}
+                        <button
+                          onClick={() => removeSymptom(sym)}
+                          className="ml-0.5 text-jc-purple-400 hover:text-jc-purple-700 cursor-pointer"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

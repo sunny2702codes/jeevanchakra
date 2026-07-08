@@ -7,6 +7,8 @@ import { recommend as dosageRecommend } from '../engines/dosage';
 import { authStore } from '../auth/authStore';
 // @ts-ignore
 import { REMEDIES } from '../data/remedies.js';
+// @ts-ignore
+import { KEYNOTE_PROBES } from '../data/keynote_probes.js';
 import { humanize } from '../utils/humanize';
 import type { ScoringResult, SavedCase, Remedy } from '../types';
 
@@ -39,6 +41,72 @@ const TIER_BAR: Record<string, string> = {
   Possible: 'bg-amber-400',
 };
 
+// ── C-05: Narrow-down types and helpers ────────────────────────────────────
+
+interface NarrowQuestion {
+  id: string;
+  prompt: string;
+  symptomKey: string;
+  yesLabel: string;
+  noLabel: string;
+}
+
+function generateNarrowQuestions(
+  r1: ScoringResult,
+  r2: ScoringResult,
+  remedyList: Remedy[],
+  probeBank: Record<string, string>,
+): NarrowQuestion[] {
+  const rem1 = remedyList.find(r => r.id === r1.remedy_id);
+  const rem2 = remedyList.find(r => r.id === r2.remedy_id);
+  if (!rem1 || !rem2) return [];
+
+  const rem2Keys = new Set((rem2.keynotes ?? []).map(k => k.symptom));
+  const rem1Keys = new Set((rem1.keynotes ?? []).map(k => k.symptom));
+
+  const questions: NarrowQuestion[] = [];
+
+  // Keynotes unique to rem1 (confirming yes would lift rem1 over rem2)
+  const unique1 = (rem1.keynotes ?? [])
+    .filter(k => (k.grade === 3 || k.grade === 2) && !rem2Keys.has(k.symptom))
+    .sort((a, b) => b.grade - a.grade)
+    .slice(0, 2);
+
+  for (const k of unique1) {
+    const prompt = probeBank[k.symptom];
+    if (!prompt) continue;
+    questions.push({
+      id: `narrow_${k.symptom}`,
+      prompt,
+      symptomKey: k.symptom,
+      yesLabel: 'Yes, this applies',
+      noLabel: 'No, this does not apply',
+    });
+    if (questions.length >= 2) break;
+  }
+
+  // Keynotes unique to rem2 (confirming yes would lift rem2 over rem1)
+  const unique2 = (rem2.keynotes ?? [])
+    .filter(k => (k.grade === 3 || k.grade === 2) && !rem1Keys.has(k.symptom))
+    .sort((a, b) => b.grade - a.grade)
+    .slice(0, 1);
+
+  for (const k of unique2) {
+    if (questions.length >= 3) break;
+    const prompt = probeBank[k.symptom];
+    if (!prompt) continue;
+    questions.push({
+      id: `narrow_${k.symptom}`,
+      prompt,
+      symptomKey: k.symptom,
+      yesLabel: 'Yes, this applies',
+      noLabel: 'No, this does not apply',
+    });
+  }
+
+  return questions.slice(0, 3);
+}
+
 function chip(label: string, value: string) {
   return (
     <span key={label} className="inline-flex items-center gap-1 text-xs text-white/80 bg-white/10 rounded-full px-2.5 py-1 leading-none">
@@ -49,10 +117,18 @@ function chip(label: string, value: string) {
 }
 
 export default function Results({ navigate, session: authSession }: ResultsProps) {
-  const { clinicalSession, clinicalResults, setClinicalResults } = useApp();
+  const { clinicalSession, setClinicalSession, clinicalResults, setClinicalResults } = useApp();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // C-05: Narrow-down state (reserved for future implementation)
+  const [narrowMode, setNarrowMode] = useState(false);
+  const [narrowStep, setNarrowStep] = useState(0);
+  const [narrowQuestions, setNarrowQuestions] = useState<NarrowQuestion[]>([]);
+  const [narrowAnswers, setNarrowAnswers] = useState<Record<string, string>>({});
+  const [narrowRefined, setNarrowRefined] = useState(false);
+  const [narrowNoData, setNarrowNoData] = useState(false);
 
   const results: ScoringResult[] = useMemo(() => {
     if (clinicalResults) return clinicalResults;
@@ -112,6 +188,65 @@ export default function Results({ navigate, session: authSession }: ResultsProps
   const noSession = !clinicalSession;
   const insufficient = clinicalSession && !canScore;
   const modCount = (clinicalSession?.worse_from?.length ?? 0) + (clinicalSession?.better_from?.length ?? 0);
+
+  function handleNarrowStart() {
+    if (results.length < 2) return;
+    const qs = generateNarrowQuestions(
+      results[0],
+      results[1],
+      REMEDIES as unknown as Remedy[],
+      KEYNOTE_PROBES as Record<string, string>,
+    );
+    if (qs.length === 0) {
+      setNarrowNoData(true);
+      setTimeout(() => setNarrowNoData(false), 3500);
+      return;
+    }
+    setNarrowQuestions(qs);
+    setNarrowAnswers({});
+    setNarrowStep(0);
+    setNarrowMode(true);
+  }
+
+  function handleNarrowAnswer(questionId: string, answer: string) {
+    const updated = { ...narrowAnswers, [questionId]: answer };
+    const nextStep = narrowStep + 1;
+
+    if (nextStep < narrowQuestions.length) {
+      setNarrowAnswers(updated);
+      setNarrowStep(nextStep);
+    } else {
+      // All questions answered: collect confirmed keynotes and re-score
+      const confirmedKeys = narrowQuestions
+        .filter(q => updated[q.id] === 'yes')
+        .map(q => q.symptomKey);
+
+      if (confirmedKeys.length > 0 && clinicalSession) {
+        const updatedSession = {
+          ...clinicalSession,
+          collected_keynotes: [
+            ...new Set([...(clinicalSession.collected_keynotes ?? []), ...confirmedKeys]),
+          ],
+        };
+        setClinicalSession(updatedSession);
+        const newResults = rank(updatedSession);
+        setClinicalResults(newResults);
+      }
+
+      setNarrowMode(false);
+      setNarrowStep(0);
+      setNarrowQuestions([]);
+      setNarrowAnswers({});
+      setNarrowRefined(true);
+    }
+  }
+
+  function handleNarrowCancel() {
+    setNarrowMode(false);
+    setNarrowStep(0);
+    setNarrowQuestions([]);
+    setNarrowAnswers({});
+  }
 
   function handleSave() {
     if (!authSession || !clinicalSession || results.length === 0) return;
@@ -262,6 +397,66 @@ export default function Results({ navigate, session: authSession }: ResultsProps
         </div>
       )}
 
+      {/* C-05: Narrow-down mode card */}
+      {narrowMode && narrowQuestions.length > 0 && (
+        <div className="jc-card border border-jc-purple-200 bg-gradient-to-br from-jc-purple-50 to-white">
+          <div className="text-xs font-bold text-jc-purple-400 uppercase tracking-widest mb-3">
+            Narrow Down: Question {narrowStep + 1} of {narrowQuestions.length}
+          </div>
+          <p className="text-sm font-semibold text-slate-800 leading-relaxed mb-5">
+            {narrowQuestions[narrowStep].prompt}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              className="jc-btn-primary flex-1 text-sm"
+              onClick={() => handleNarrowAnswer(narrowQuestions[narrowStep].id, 'yes')}
+            >
+              {narrowQuestions[narrowStep].yesLabel}
+            </button>
+            <button
+              className="jc-btn-ghost flex-1 text-sm"
+              onClick={() => handleNarrowAnswer(narrowQuestions[narrowStep].id, 'no')}
+            >
+              {narrowQuestions[narrowStep].noLabel}
+            </button>
+          </div>
+          <div className="mt-4 text-center">
+            <button
+              className="text-xs text-slate-400 underline hover:text-slate-600 transition-colors"
+              onClick={handleNarrowCancel}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* C-05: Close-match detected banner */}
+      {!narrowMode && results.length >= 2 && (results[0].normalised_score - results[1].normalised_score) <= 8 && (
+        <div className="jc-card border border-blue-200 bg-blue-50">
+          <div className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Close Match Detected</div>
+          <p className="text-sm text-slate-700 mb-1">
+            <span className="font-semibold">{results[0].latin_name ?? results[0].remedy_id}</span>
+            {' '}({results[0].normalised_score}%) vs{' '}
+            <span className="font-semibold">{results[1].latin_name ?? results[1].remedy_id}</span>
+            {' '}({results[1].normalised_score}%)
+          </p>
+          <p className="text-xs text-slate-500 mb-3">
+            These two remedies score within {results[0].normalised_score - results[1].normalised_score}% of each other.
+            Answer a few targeted questions to narrow the match.
+          </p>
+          {narrowNoData ? (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Insufficient keynote data to narrow further.
+            </p>
+          ) : (
+            <button className="jc-btn-secondary text-sm" onClick={handleNarrowStart}>
+              Narrow Down
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Remedy cards */}
       <div className="space-y-3">
         {results.map((r, idx) => {
@@ -299,6 +494,11 @@ export default function Results({ navigate, session: authSession }: ResultsProps
                 </div>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
                   <div className="flex items-center gap-2">
+                    {idx === 0 && narrowRefined && (
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5 leading-none">
+                        Refined
+                      </span>
+                    )}
                     <span className={TIER_BADGE[tier] ?? 'jc-badge-possible'}>{tier}</span>
                     <span className="text-lg font-bold text-jc-purple-700 w-12 text-right tabular-nums">{r.normalised_score}%</span>
                   </div>

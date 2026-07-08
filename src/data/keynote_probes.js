@@ -303,4 +303,110 @@ export const KEYNOTE_PROBES = {
     'Is this the early stage of an illness with mild fever but no clear, characteristic symptoms yet?',
   'predisposition_to_hemorrhage_bright_red':
     'Is there easy bleeding with bright red blood from any mucous membrane?',
+
+  // ── Salvaged from keynote_bank (C-09) ────────────────────────────────────
+  'better_from_firm_hard_pressure':
+    'Is the pain completely relieved by firm, hard pressure?',
+  'worse_from_consolation_sympathy':
+    'Does sympathy or consolation make the patient feel worse or cause them to pull away?',
+  'warmth_relieves_abdominal_pain':
+    'Does warmth or warm drinks give distinct relief to abdominal pain?',
+  'stool_expelled_with_great_force_urgency':
+    'Is stool expelled with great urgency and force, almost impossible to control?',
+  'pain_right_shoulder_blade_right_scapular':
+    'Is there a constant sharp or aching pain under or around the right shoulder blade?',
+  'better_from_cold_applications':
+    'Do cold applications or cold water give definite relief to the inflamed or painful part?',
+  'ailments_from_grief_disappointed_love':
+    'Did the illness begin after a significant grief, loss, or heartbreak?',
+  'sensation_lump_in_throat_globus':
+    'Is there a persistent sensation of a lump in the throat (globus) that cannot be swallowed?',
+  'symptoms_start_left_move_to_right':
+    'Do symptoms consistently begin on the left side and then move to the right?',
+  'symptoms_right_sided_predominance':
+    'Are symptoms predominantly right-sided, or do they start right and move to the left?',
+  'thirstless_during_fever_even_with_heat':
+    'Is the patient remarkably thirstless during fever, with almost no desire to drink?',
+  'profuse_sweat_gives_no_relief':
+    'Is there profuse perspiration that gives no relief whatsoever to the condition?',
+  'abdominal_discomfort_better_from_flatus':
+    'Is abdominal discomfort or pain greatly relieved by passing flatus?',
+  'worse_first_motion_better_continued_motion':
+    'Is pain or stiffness worst when first starting to move, then improves with continued movement?',
+  'silent_brooding_cannot_talk_about_grief':
+    'Does the patient become silent and withdrawn, unable or unwilling to talk about their suffering?',
+  'milk_disagrees_causes_symptoms':
+    'Does drinking milk specifically aggravate symptoms, or is there a strong aversion to milk?',
+  'symptoms_recur_at_strict_regular_intervals':
+    'Do the symptoms recur at very regular intervals, exactly the same time each day, week, or alternate days?',
+  'ailments_following_vaccination':
+    'Did the complaint begin or significantly worsen shortly after a vaccination?',
+  'aversion_to_meat_smell_offensive':
+    'Is there a distinct aversion to meat, even the smell of meat is offensive?',
+  'strong_craving_for_sweets_and_sweet_food':
+    'Is there a marked, persistent craving for sweets and sweet things?',
+  'better_from_doubling_up_bending_knees_chest':
+    'Does doubling up, bending double, or drawing the knees to the chest give relief?',
+  'better_stretching_back_bending_backward':
+    'Is the pain distinctly better from stretching out or bending backwards?',
+  'better_from_uncovering_cold_air':
+    'Does uncovering, removing covers, or exposure to cool air give distinct relief?',
+  'ailments_from_suppressed_anger_indignation':
+    'Did the illness begin after a fit of anger, suppressed rage, or a feeling of injustice?',
+  'better_from_short_nap_or_sleep':
+    'Does even a short sleep or nap distinctly and noticeably improve the condition?',
+  'aggravation_10_to_11AM_regular':
+    'Is there a regular aggravation around 10 to 11 AM every day?',
+  'profuse_head_scalp_perspiration_during_sleep':
+    'Is there profuse perspiration of the head and scalp, especially during sleep?',
+  'desires_company_when_anxious_fears_alone':
+    'When anxious, is there a strong desire for company or to be near other people?',
+  'frequent_involuntary_deep_sighing':
+    'Is there frequent, involuntary, deep sighing that the patient cannot control?',
+  'burning_pain_before_urination_starts':
+    'Is there burning or pain present BEFORE urination begins, in the urethra before the stream starts?',
+  'constant_sensation_bladder_not_emptied':
+    'Is there a constant sensation that the bladder has not been fully emptied after urination?',
+  'worse_before_menses_premenstrual_aggravation':
+    'Are symptoms noticeably worse in the days just before menstruation begins?',
+  'better_during_menstrual_flow':
+    'Does the patient feel better once menstrual flow starts?',
+  'cough_worse_immediately_on_lying_down':
+    'Does the cough worsen immediately when lying down?',
+  'barking_hollow_cough_like_seal':
+    'Is the cough loud, barking, or hollow, sometimes described as similar to a seal bark?',
+  'cough_from_dry_tickle_at_larynx':
+    'Is a dry, tickling sensation at the larynx or upper throat the trigger for the cough?',
+  'swollen_joints_better_cold_applications_apis':
+    'Are joints swollen, shiny, and distinctly better from cold applications?',
+  'joints_hot_red_swollen_worse_touch':
+    'Are the joints hot, red, swollen, and very tender to any touch?',
+  'joint_symptoms_worse_before_storm_weather_change':
+    'Do joint or muscle symptoms worsen distinctly before a storm or change in weather?',
+  'ailments_from_suppressed_skin_eruptions':
+    'Was there a previous skin eruption that was suppressed by ointments, creams, or steroids?',
+  'sticky_honey_like_oozing_from_eruption':
+    'Is there a sticky, honey-like oozing from the skin eruption that crusts and cracks?',
+  'wakes_early_3_to_5AM_cannot_return_to_sleep':
+    'Does the patient fall asleep normally but wake early (3 to 5 AM) and cannot return to sleep?',
+  'sleeplessness_from_rush_of_thoughts_at_bedtime':
+    'Is sleeplessness caused by a rush of thoughts, plans, or business worries at bedtime?',
+  'child_only_calm_when_carried_screams_when_put_down':
+    'Is the child only calmed when being carried, and screams or cries when put down?',
+  'marked_relief_from_belching_eructation':
+    'Is there marked relief from belching or eructation?',
+  'nausea_triggered_by_sight_or_smell_of_food':
+    'Is there nausea triggered even by the sight or smell of food?',
+  'feels_better_after_weeping_crying':
+    'Does weeping or crying make the patient feel distinctly better (relieved after tears)?',
+  'fear_of_being_alone_especially_night':
+    'Is there a marked fear of being alone, especially at night?',
+  'anticipation_of_event_brings_on_symptoms':
+    'Does anticipating an upcoming event (exam, performance, meeting) bring on or worsen symptoms?',
+  'bruised_soreness_whole_body_worse_touch':
+    'Is the whole body or affected part sore and bruised-feeling, worse from any touch?',
+  'shooting_nerve_pain_from_injury_worse_touch':
+    'Is there shooting or darting pain along nerve pathways after injury, worse from the slightest touch?',
+  'puncture_wound_better_cold_applications':
+    'Was the injury a puncture wound (nail, splinter, bite) that feels better from cold applications?',
 };

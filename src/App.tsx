@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { authStore } from './auth/authStore';
 import type { JCScreen, JCSession, ClinicalSession, ScoringResult } from './types';
@@ -8,19 +8,20 @@ import Navbar from './components/Navbar';
 
 import SplashScreen from './screens/Splash';
 import AuthScreens from './screens/Auth';
-import HomeScreen from './screens/Home';
-import SafetyScreen from './screens/Safety';
-import ComplaintScreen from './screens/Complaint';
-import IntakeScreen from './screens/Intake';
-import ResultsScreen from './screens/Results';
-import CasesScreen from './screens/Cases';
-import LibraryScreen from './screens/Library';
-import AdminScreen from './screens/Admin';
-import CompareScreen from './screens/CompareRemedies';
-import ConstitutionalScreen from './screens/ConstitutionalType';
-import RubricSearchScreen from './screens/RubricSearch';
-import PrivacyPolicyScreen from './screens/PrivacyPolicy';
-import ProfileScreen from './screens/Profile';
+
+const HomeScreen           = lazy(() => import('./screens/Home'));
+const SafetyScreen         = lazy(() => import('./screens/Safety'));
+const ComplaintScreen      = lazy(() => import('./screens/Complaint'));
+const IntakeScreen         = lazy(() => import('./screens/Intake'));
+const ResultsScreen        = lazy(() => import('./screens/Results'));
+const CasesScreen          = lazy(() => import('./screens/Cases'));
+const LibraryScreen        = lazy(() => import('./screens/Library'));
+const AdminScreen          = lazy(() => import('./screens/Admin'));
+const CompareScreen        = lazy(() => import('./screens/CompareRemedies'));
+const ConstitutionalScreen = lazy(() => import('./screens/ConstitutionalType'));
+const RubricSearchScreen   = lazy(() => import('./screens/RubricSearch'));
+const PrivacyPolicyScreen  = lazy(() => import('./screens/PrivacyPolicy'));
+const ProfileScreen        = lazy(() => import('./screens/Profile'));
 
 function HaltScreen({ navigate }: { navigate: (s: string) => void }) {
   return (
@@ -195,18 +196,24 @@ export default function App() {
           <Navbar session={session} navigate={navigate} />
 
           <main className="flex-1 overflow-y-auto p-6 bg-jc-purple-50/40 print:p-0 print:bg-white">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={screen}
-                variants={screenVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                className="h-full"
-              >
-                {renderScreen()}
-              </motion.div>
-            </AnimatePresence>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="w-8 h-8 border-2 border-jc-purple-700 border-t-transparent rounded-full animate-spin" />
+              </div>
+            }>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={screen}
+                  variants={screenVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="h-full"
+                >
+                  {renderScreen()}
+                </motion.div>
+              </AnimatePresence>
+            </Suspense>
           </main>
         </div>
       </div>

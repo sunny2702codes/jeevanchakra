@@ -186,9 +186,12 @@ function RemedyDetailContent({ remedy }: { remedy: Remedy }) {
 
       {/* Boericke reference */}
       {remedy.boericke_page && (
-        <div className="flex items-center gap-1.5 text-xs text-slate-400 border-t border-slate-100 pt-3">
-          <ExternalLink size={11} />
-          <span>Boericke Materia Medica, page {remedy.boericke_page}</span>
+        <div className="border-t border-slate-100 pt-3 mt-1">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">Boericke Reference</div>
+          <div className="flex items-start gap-2 text-xs text-slate-500">
+            <ExternalLink size={11} className="shrink-0 mt-0.5 text-slate-400" />
+            <span className="font-medium text-slate-600">Materia Medica, 8th Ed., p.{remedy.boericke_page}</span>
+          </div>
         </div>
       )}
     </div>
@@ -242,6 +245,10 @@ function RemedyCard({ remedy, onClick }: { remedy: Remedy; onClick: () => void }
 
       {remedy.description && (
         <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{remedy.description}</p>
+      )}
+
+      {remedy.boericke_page && (
+        <div className="text-xs text-slate-300 font-mono">Boericke p.{remedy.boericke_page}</div>
       )}
 
       <div className="pt-1 flex justify-end">

@@ -337,8 +337,10 @@ ok('JS bundle in dist/assets', !!jsBundle, jsBundle ?? 'missing');
 ok('CSS bundle in dist/assets', !!cssBundle, cssBundle ?? 'missing');
 
 if (jsBundle) {
-  const jsStat = (await import('fs')).statSync(path.join(assetsDir, jsBundle));
-  ok('JS bundle >1MB (700 remedies included)', jsStat.size > 1_000_000, `${(jsStat.size/1024/1024).toFixed(1)}MB`);
+  const fsMod = await import('fs');
+  const allJsBundles = assetFiles.filter(f => f.endsWith('.js'));
+  const totalJsSize = allJsBundles.reduce((sum, f) => sum + fsMod.statSync(path.join(assetsDir, f)).size, 0);
+  ok('JS bundle >1MB (700 remedies included)', totalJsSize > 1_000_000, `${(totalJsSize/1024/1024).toFixed(1)}MB across ${allJsBundles.length} chunks`);
 }
 
 // ── 8. Live site ──────────────────────────────────────────────────────────
