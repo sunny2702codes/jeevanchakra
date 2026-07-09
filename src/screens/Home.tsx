@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { Stethoscope, ClipboardEdit, Search, BookOpen, Calendar, Activity, Lightbulb, GitCompare } from 'lucide-react';
+import { Stethoscope, ClipboardEdit, Search, BookOpen, Calendar, Activity, Lightbulb, GitCompare, Users } from 'lucide-react';
 import { authStore } from '../auth/authStore';
+import { patientStore } from '../data/patientStore';
 import { humanize } from '../utils/humanize';
-import type { JCSession } from '../types';
+import type { JCSession, ClinicalSession } from '../types';
 
 interface HomeProps {
   session: JCSession | null;
@@ -31,15 +32,22 @@ function getFirstName(name: string) { return name.split(' ')[0]; }
 const cardAnim = { initial: { opacity: 0, y: 16 }, animate: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.07 } }) };
 
 const QUICK_ACTION_GRADIENTS: Record<string, string> = {
-  safety:        'linear-gradient(135deg, #5B21B6 0%, #3b1162 100%)',
+  safety:          'linear-gradient(135deg, #5B21B6 0%, #3b1162 100%)',
   'rubric-search': 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-  library:       'linear-gradient(135deg, #059669 0%, #047857 100%)',
-  compare:       'linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)',
+  library:         'linear-gradient(135deg, #059669 0%, #047857 100%)',
+  compare:         'linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)',
 };
+
+interface DraftData {
+  session: ClinicalSession;
+  step: number;
+  savedAt: string;
+}
 
 export default function Home({ session, navigate }: HomeProps) {
   const phone = session?.phone ?? '';
   const cases = phone ? authStore.getUserCases(phone) : [];
+  const patientCount = phone ? patientStore.getForUser(phone).length : 0;
   const now = new Date();
   const monthCases = cases.filter(c => {
     const d = new Date(c.date);
@@ -49,10 +57,28 @@ export default function Home({ session, navigate }: HomeProps) {
   const tip = TIPS[now.getDate() % TIPS.length];
   const recent = cases.slice(0, 3);
 
+  // Draft detection
+  const DRAFT_KEY = `jc_draft_intake_${phone}`;
+  const hasDraft = phone ? !!localStorage.getItem(DRAFT_KEY) : false;
+  const draftData: DraftData | null = hasDraft ? (() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY)!) as DraftData; } catch { return null; }
+  })() : null;
+
+  // Top prescribed remedies
+  const remedyCount = new Map<string, number>();
+  for (const c of cases) {
+    const top = c.topRemedy ?? c.results?.[0]?.remedy_id;
+    if (top) remedyCount.set(top, (remedyCount.get(top) ?? 0) + 1);
+  }
+  const topRemedies = Array.from(remedyCount.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
   const stats = [
     { label: 'Cases This Month', value: monthCases.length, icon: <Calendar size={22} className="text-jc-purple-600" /> },
     { label: 'Remedies Explored', value: uniqueRemedies, icon: <Activity size={22} className="text-jc-gold-600" /> },
     { label: 'Total Sessions', value: cases.length, icon: <Stethoscope size={22} className="text-emerald-600" /> },
+    { label: 'Patients', value: patientCount, icon: <Users size={22} className="text-blue-500" /> },
   ];
 
   const quickActions = [
@@ -64,6 +90,47 @@ export default function Home({ session, navigate }: HomeProps) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+
+      {/* Draft resume card */}
+      {hasDraft && draftData && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="jc-card border border-jc-purple-200 bg-gradient-to-r from-jc-purple-50 to-white"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-xs font-bold text-jc-purple-600 uppercase tracking-widest mb-1">Incomplete Assessment</div>
+              <p className="text-sm font-semibold text-slate-800">
+                {draftData.session?.complaint ? humanize(draftData.session.complaint) : 'Assessment in progress'}
+              </p>
+              {draftData.savedAt && (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Started {new Date(draftData.savedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                className="jc-btn-primary text-sm"
+                onClick={() => navigate('intake')}
+              >
+                Resume
+              </button>
+              <button
+                className="jc-btn-ghost text-sm"
+                onClick={() => {
+                  localStorage.removeItem(DRAFT_KEY);
+                  window.location.reload();
+                }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Welcome header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-2xl font-bold text-slate-800">{getGreeting()}, {getFirstName(session?.name ?? 'there')}.</h1>
@@ -76,7 +143,7 @@ export default function Home({ session, navigate }: HomeProps) {
       </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {stats.map((s, i) => (
           <motion.div
             key={s.label}
@@ -115,6 +182,38 @@ export default function Home({ session, navigate }: HomeProps) {
         ))}
       </div>
 
+      {/* Top prescribed remedies */}
+      {topRemedies.length > 0 && (
+        <motion.div custom={5} variants={cardAnim} initial="initial" animate="animate" className="jc-card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-slate-800">Top Considerations</h3>
+            <span className="text-xs text-slate-400">by frequency across all cases</span>
+          </div>
+          <div className="space-y-2.5">
+            {topRemedies.map(([remedyId, count], i) => {
+              const pct = Math.round((count / (topRemedies[0][1])) * 100);
+              return (
+                <div key={remedyId} className="flex items-center gap-3">
+                  <div className="w-5 text-xs text-slate-400 text-right shrink-0">{i + 1}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-sm font-medium text-slate-700 truncate capitalize">{remedyId.replace(/-/g, ' ')}</span>
+                      <span className="text-xs text-slate-400 ml-2 shrink-0">{count}x</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-jc-purple-400 rounded-full"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
       {/* Recent sessions */}
       <div className="jc-card">
         <div className="flex items-center justify-between mb-4">
@@ -151,11 +250,23 @@ export default function Home({ session, navigate }: HomeProps) {
                   <div className="font-medium text-slate-800 text-sm truncate">
                     {c.complaint ? humanize(c.complaint) : 'General assessment'}
                   </div>
-                  <div className="text-xs text-slate-400">
-                    {new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-slate-400">
+                      {new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </span>
+                    {c.patientName && (
+                      <span className="text-xs text-jc-purple-500 truncate">{c.patientName}</span>
+                    )}
                   </div>
                 </div>
-                {c.topRemedy && <span className="jc-badge-probable shrink-0">{c.topRemedy}</span>}
+                {c.topRemedy && (
+                  <div className="flex flex-col items-end gap-0.5 shrink-0">
+                    <span className="jc-badge-probable">{c.topRemedy}</span>
+                    {c.results?.[0]?.normalised_score && (
+                      <span className="text-[10px] text-slate-400">{Math.round(c.results[0].normalised_score)}%</span>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

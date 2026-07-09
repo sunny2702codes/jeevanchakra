@@ -88,7 +88,8 @@
 
 @media print {
   /* Hide navigation and interactive elements */
-  aside, header, .print\:hidden { display: none !important; }
+  aside, header, nav, .print\:hidden { display: none !important; }
+  .hidden.print\:block { display: block !important; }
 
   /* Reset layout for print */
   html, body, #root { height: auto !important; overflow: visible !important; }

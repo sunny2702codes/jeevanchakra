@@ -3,6 +3,7 @@ import { Shield, AlertTriangle, AlertCircle, Info, User } from 'lucide-react';
 import type { RedFlag, FlagSeverity, ClinicalSession } from '../types';
 import { useApp } from '../App';
 import { patientStore } from '../data/patientStore';
+import { draftStore } from '../data/draftStore';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - JS data file, typed below
 import { RED_FLAGS as _RAW } from '../data/redflags.js';
@@ -21,13 +22,15 @@ const SEV: Record<FlagSeverity, { label: string; cls: string; bg: string; bdr: s
 };
 
 export default function Safety({ navigate }: SafetyProps) {
-  const { clinicalSession, setClinicalSession, currentPatientId } = useApp();
+  const { clinicalSession, setClinicalSession, currentPatientId, session: authSession } = useApp();
 
   const [declared, setDeclared] = useState(false);
   const [patientName, setPatientName]   = useState('');
   const [patientAgeStr, setPatientAgeStr] = useState('');
   const [patientGender, setPatientGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [fromRecord, setFromRecord] = useState(false);
+  const [hasDraft, setHasDraft] = useState(() => authSession?.phone ? draftStore.exists(authSession.phone) : false);
+  const [draftInfo, setDraftInfo] = useState(() => authSession?.phone ? draftStore.load(authSession.phone) : null);
 
   useEffect(() => {
     if (currentPatientId) {
@@ -47,6 +50,21 @@ export default function Safety({ navigate }: SafetyProps) {
 
   const grouped: Record<FlagSeverity, RedFlag[]> = { emergency: [], urgent: [], caution: [] };
   for (const f of RED_FLAGS) grouped[f.severity].push(f);
+
+  function handleResumeDraft() {
+    if (!authSession?.phone) return;
+    const draft = draftStore.load(authSession.phone);
+    if (!draft) return;
+    setClinicalSession(draft.session);
+    navigate('intake');
+  }
+
+  function handleDiscardDraft() {
+    if (!authSession?.phone) return;
+    draftStore.clear(authSession.phone);
+    setHasDraft(false);
+    setDraftInfo(null);
+  }
 
   function handleContinue() {
     if (!declared) return;
@@ -106,6 +124,32 @@ export default function Safety({ navigate }: SafetyProps) {
           </p>
         </div>
       </div>
+
+      {/* Draft resume banner */}
+      {hasDraft && draftInfo && (
+        <div className="flex items-center gap-4 px-4 py-3 bg-jc-purple-50 border border-jc-purple-200 rounded-xl">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-jc-purple-800">Assessment in progress</p>
+            <p className="text-xs text-jc-purple-600 mt-0.5">
+              {draftInfo.session.complaint ?? 'Unknown complaint'} - step {draftInfo.step + 1} completed
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+              onClick={handleDiscardDraft}
+            >
+              Discard
+            </button>
+            <button
+              className="jc-btn-primary py-1.5 px-3 text-xs"
+              onClick={handleResumeDraft}
+            >
+              Resume
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Patient details card */}
       <div className="jc-card space-y-4">

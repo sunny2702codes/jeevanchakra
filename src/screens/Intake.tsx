@@ -6,6 +6,7 @@ import { REMEDIES } from '../data/remedies.js';
 import { KEYNOTE_PROBES } from '../data/keynote_probes.js';
 import { rank, hasMinimumSet } from '../engines/scoring';
 import type { ClinicalSession, Miasm, ConstitutionType, Remedy } from '../types';
+import { draftStore } from '../data/draftStore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -207,7 +208,7 @@ const STEPS = ['Safety', 'Complaint', 'Intake', 'Analysis', 'Results'];
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function Intake({ navigate }: IntakeProps) {
-  const { clinicalSession, setClinicalSession, setClinicalResults, addedRubricIds } = useApp();
+  const { clinicalSession, setClinicalSession, setClinicalResults, addedRubricIds, session: authSession } = useApp();
 
   const mainQuestions = useMemo(
     () => getQuestionsForSession(clinicalSession?.branch ?? null),
@@ -220,12 +221,21 @@ export default function Intake({ navigate }: IntakeProps) {
     [mainQuestions],
   );
 
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<number>(() => {
+    if (!authSession?.phone || !clinicalSession) return 0;
+    const draft = draftStore.load(authSession.phone);
+    if (draft?.session.id === clinicalSession.id && draft.step > 0) return draft.step;
+    return 0;
+  });
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [keynoteQuestions, setKeynoteQuestions] = useState<IntakeQuestion[]>([]);
   const [showConstitutionalPrompt, setShowConstitutionalPrompt] = useState(false);
-  const [session, setSession] = useState<ClinicalSession>(
-    clinicalSession ?? {
+  const [session, setSession] = useState<ClinicalSession>(() => {
+    if (authSession?.phone && clinicalSession) {
+      const draft = draftStore.load(authSession.phone);
+      if (draft?.session.id === clinicalSession.id && draft.step > 0) return draft.session;
+    }
+    return clinicalSession ?? {
       id: `sess_${Date.now()}`,
       started: new Date().toISOString(),
       complaint: null,
@@ -246,8 +256,8 @@ export default function Intake({ navigate }: IntakeProps) {
       concomitants_general: [],
       branch_answers: {},
       collected_keynotes: [],
-    },
-  );
+    };
+  });
 
   // C-01: Symptom search widget state
   const [showSymptomSearch, setShowSymptomSearch] = useState(false);
@@ -290,15 +300,20 @@ export default function Intake({ navigate }: IntakeProps) {
     }
   }
 
+  function clearAndGoResults(s: ClinicalSession) {
+    if (authSession?.phone) draftStore.clear(authSession.phone);
+    setClinicalSession(s);
+    setClinicalResults(null);
+    navigate('results');
+  }
+
   function finishIntake(updatedSession: ClinicalSession) {
     const probes = generateKeynoteProbes(updatedSession);
     if (probes.length > 0) {
       setKeynoteQuestions(probes);
       setStep(mainQuestions.length);
     } else {
-      setClinicalSession({ ...updatedSession, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
-      setClinicalResults(null);
-      navigate('results');
+      clearAndGoResults({ ...updatedSession, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
     }
   }
 
@@ -323,11 +338,10 @@ export default function Intake({ navigate }: IntakeProps) {
     if (step === mainQuestions.length - 1 && keynoteQuestions.length === 0) {
       finishIntake(updated);
     } else if (isLast) {
-      setClinicalSession({ ...updated, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
-      setClinicalResults(null);
-      navigate('results');
+      clearAndGoResults({ ...updated, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
     } else {
       setStep(s => s + 1);
+      if (authSession?.phone) draftStore.save(authSession.phone, updated, step + 1);
     }
   }
 
@@ -347,28 +361,20 @@ export default function Intake({ navigate }: IntakeProps) {
   function handleSkip() {
     const withRubrics = { ...session, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined };
     if (showConstitutionalPrompt) {
-      setClinicalSession(withRubrics);
-      setClinicalResults(null);
-      navigate('results');
+      clearAndGoResults(withRubrics);
       return;
     }
     if (step === mainQuestions.length - 1 && keynoteQuestions.length === 0) {
-      setClinicalSession(withRubrics);
-      setClinicalResults(null);
-      navigate('results');
+      clearAndGoResults(withRubrics);
     } else if (isLast) {
-      setClinicalSession(withRubrics);
-      setClinicalResults(null);
-      navigate('results');
+      clearAndGoResults(withRubrics);
     } else {
       setStep(s => s + 1);
     }
   }
 
   function handleEarlyResults() {
-    setClinicalSession({ ...session, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
-    setClinicalResults(null);
-    navigate('results');
+    clearAndGoResults({ ...session, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
   }
 
   // C-01: Symptom search handlers
@@ -514,6 +520,7 @@ export default function Intake({ navigate }: IntakeProps) {
               onClick={() => {
                 setShowConstitutionalPrompt(false);
                 setStep(constitutionalStart);
+                if (authSession?.phone) draftStore.save(authSession.phone, session, constitutionalStart);
               }}
             >
               Continue (8 questions)
@@ -521,9 +528,7 @@ export default function Intake({ navigate }: IntakeProps) {
             <button
               className="jc-btn-secondary flex-1"
               onClick={() => {
-                setClinicalSession({ ...session, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
-                setClinicalResults(null);
-                navigate('results');
+                clearAndGoResults({ ...session, added_rubric_ids: addedRubricIds.length > 0 ? addedRubricIds : undefined });
               }}
             >
               Skip to Results

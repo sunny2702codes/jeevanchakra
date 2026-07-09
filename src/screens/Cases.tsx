@@ -33,11 +33,18 @@ function deleteCaseFromStore(phone: string, caseId: string): void {
   } catch { /* ignore */ }
 }
 
+const RESPONSE_META: Record<NonNullable<SavedCase['followUpResponse']>, { label: string; cls: string }> = {
+  amelioration: { label: 'Ameliorated',  cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+  partial:      { label: 'Partial',      cls: 'bg-blue-50 border-blue-200 text-blue-700' },
+  no_change:    { label: 'No change',    cls: 'bg-slate-50 border-slate-200 text-slate-500' },
+  aggravation:  { label: 'Aggravation',  cls: 'bg-amber-50 border-amber-200 text-amber-700' },
+};
+
 export default function CasesScreen({ session: propSession, navigate: propNavigate }: CasesProps = {}) {
   const ctx = useApp();
   const session = propSession ?? ctx.session;
   const navigate = propNavigate ?? ctx.navigate;
-  const { setClinicalSession, setClinicalResults } = ctx;
+  const { setClinicalSession, setClinicalResults, setAddedRubricIds } = ctx;
 
   const [cases, setCases] = useState<SavedCase[]>(() =>
     session ? authStore.getUserCases(session.phone) : []
@@ -47,6 +54,8 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
   const [view, setView] = useState<'list' | 'timeline'>('list');
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [editingNotesText, setEditingNotesText] = useState('');
+  const [followUpCaseId, setFollowUpCaseId] = useState<string | null>(null);
+  const [followUpResponse, setFollowUpResponse] = useState<SavedCase['followUpResponse'] | null>(null);
 
   function toggleExpand(id: string) {
     setExpandedId(prev => (prev === id ? null : id));
@@ -86,13 +95,37 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
     setEditingNotesText('');
   }
 
-  function handleFollowUp(c: SavedCase) {
+  function launchFollowUp(c: SavedCase, response: SavedCase['followUpResponse']) {
+    // Persist response to parent case
+    try {
+      const s = localStorage.getItem(USERS_KEY);
+      if (s && session) {
+        const users = JSON.parse(s) as { phone: string; cases: SavedCase[] }[];
+        const ui = users.findIndex(u => u.phone === session!.phone);
+        if (ui >= 0) {
+          const ci = users[ui].cases.findIndex(ca => ca.id === c.id);
+          if (ci >= 0) {
+            users[ui].cases[ci].followUpResponse = response;
+            localStorage.setItem(USERS_KEY, JSON.stringify(users));
+            setCases(authStore.getUserCases(session!.phone));
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
     setClinicalSession({
       ...c.session,
       id: `sess_${Date.now()}`,
       started: new Date().toISOString(),
+      parentCaseId: c.id,
+      patientName: c.patientName,
+      patientAge: c.patientAge,
+      patientGender: c.patientGender,
     });
     setClinicalResults(null);
+    setAddedRubricIds([]);
+    setFollowUpCaseId(null);
+    setFollowUpResponse(null);
     navigate('intake');
   }
 
@@ -183,6 +216,11 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                               {humanize(c.complaint)}
                             </span>
                           )}
+                          {c.parentCaseId && (
+                            <span className="text-[10px] text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+                              Follow-up
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm font-semibold text-slate-800 mt-0.5 truncate">
                           {topRemedy}
@@ -190,11 +228,21 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                             <span className="ml-2 text-xs font-normal text-slate-400">{topScore}%</span>
                           )}
                         </p>
-                        {(c.patientName || c.patientGender) && (
-                          <p className="text-xs text-jc-purple-500 mt-0.5">
-                            {[c.patientName, c.patientAge ? `${c.patientAge}y` : null, c.patientGender].filter(Boolean).join(', ')}
-                          </p>
-                        )}
+                        <div className="flex items-center flex-wrap gap-1 mt-0.5">
+                          {(c.patientName || c.patientGender) && (
+                            <p className="text-xs text-jc-purple-500">
+                              {[c.patientName, c.patientAge ? `${c.patientAge}y` : null, c.patientGender].filter(Boolean).join(', ')}
+                            </p>
+                          )}
+                          {c.followUpResponse && (() => {
+                            const meta = RESPONSE_META[c.followUpResponse];
+                            return (
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.cls}`}>
+                                {meta.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </div>
 
                       <button
@@ -209,6 +257,24 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                     {/* Expanded panel */}
                     {isExpanded && (
                       <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-4">
+
+                        {/* Case arc - show parent link */}
+                        {c.parentCaseId && (() => {
+                          const parent = cases.find(p => p.id === c.parentCaseId);
+                          return parent ? (
+                            <div className="bg-jc-purple-50 border border-jc-purple-100 rounded-xl px-3 py-2">
+                              <p className="text-xs font-semibold text-jc-purple-700 mb-0.5">Follow-up of:</p>
+                              <p className="text-xs text-slate-600">
+                                {formatDate(parent.date)} - {parent.topRemedy ?? 'Unknown'}
+                              </p>
+                              {c.followUpResponse && (
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                  Response to prior remedy: {c.followUpResponse.replace(/_/g, ' ')}
+                                </p>
+                              )}
+                            </div>
+                          ) : null;
+                        })()}
 
                         {/* Session details grid */}
                         <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
@@ -300,16 +366,53 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                           )}
                         </div>
 
-                        {/* Follow-up CTA */}
-                        <div className="pt-1">
-                          <button
-                            className="jc-btn-secondary text-sm flex items-center gap-2"
-                            onClick={() => handleFollowUp(c)}
-                          >
-                            <RefreshCw size={14} />
-                            Start Follow-up Assessment
-                          </button>
-                        </div>
+                        {/* Follow-up CTA - two-step with response capture */}
+                        {followUpCaseId === c.id ? (
+                          <div className="pt-2 space-y-3">
+                            <p className="text-xs font-semibold text-slate-600">How did the previous remedy perform?</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {([
+                                ['amelioration', 'Amelioration',    'bg-emerald-50 border-emerald-200 text-emerald-700'],
+                                ['partial',      'Partial response', 'bg-blue-50 border-blue-200 text-blue-700'],
+                                ['no_change',    'No change',        'bg-slate-50 border-slate-200 text-slate-600'],
+                                ['aggravation',  'Aggravation',      'bg-amber-50 border-amber-200 text-amber-700'],
+                              ] as const).map(([val, label, cls]) => (
+                                <button
+                                  key={val}
+                                  className={`text-xs font-semibold border rounded-xl py-2 px-3 transition-all cursor-pointer ${cls} ${followUpResponse === val ? 'ring-2 ring-offset-1 ring-jc-purple-400' : ''}`}
+                                  onClick={() => setFollowUpResponse(val)}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                className="jc-btn-primary text-sm flex-1"
+                                disabled={!followUpResponse}
+                                onClick={() => followUpResponse && launchFollowUp(c, followUpResponse)}
+                              >
+                                Continue to Follow-up
+                              </button>
+                              <button
+                                className="jc-btn-ghost text-sm"
+                                onClick={() => { setFollowUpCaseId(null); setFollowUpResponse(null); }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="pt-1">
+                            <button
+                              className="jc-btn-secondary text-sm flex items-center gap-2"
+                              onClick={() => { setFollowUpCaseId(c.id); setFollowUpResponse(null); }}
+                            >
+                              <RefreshCw size={14} />
+                              Start Follow-up Assessment
+                            </button>
+                          </div>
+                        )}
 
                         {/* Delete row */}
                         <div className="pt-1 flex justify-end border-t border-slate-50">
@@ -381,8 +484,19 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                           {c.patientName && (
                             <p className="text-xs text-jc-purple-500 mt-0.5">{c.patientName}</p>
                           )}
+                          {c.parentCaseId && (
+                            <span className="text-[10px] text-slate-400">Follow-up</span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                          {c.followUpResponse && (() => {
+                            const meta = RESPONSE_META[c.followUpResponse];
+                            return (
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.cls}`}>
+                                {meta.label}
+                              </span>
+                            );
+                          })()}
                           {topScore > 0 && (
                             <span
                               className={
@@ -427,7 +541,7 @@ export default function CasesScreen({ session: propSession, navigate: propNaviga
                       )}
                       <button
                         className="jc-btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
-                        onClick={() => handleFollowUp(c)}
+                        onClick={() => { setView('list'); setFollowUpCaseId(c.id); setFollowUpResponse(null); setExpandedId(c.id); }}
                       >
                         <RefreshCw size={12} /> Follow-up
                       </button>

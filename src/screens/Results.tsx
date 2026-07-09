@@ -153,6 +153,7 @@ export default function Results({ navigate, session: authSession }: ResultsProps
   const [narrowAnswers, setNarrowAnswers] = useState<Record<string, string>>({});
   const [narrowRefined, setNarrowRefined] = useState(false);
   const [narrowNoData, setNarrowNoData] = useState(false);
+  const [showGrid, setShowGrid] = useState(false);
 
   useEffect(() => {
     if (clinicalSession?.added_rubric_ids?.length) {
@@ -193,6 +194,26 @@ export default function Results({ navigate, session: authSession }: ResultsProps
       .filter(k => k.grade === 3 && !captured.has(k.symptom))
       .slice(0, 4);
   }, [results, clinicalSession, topRemedyFull]);
+
+  // Repertorization grid data
+  type GridSymptom = { field: string; value: string; key: string };
+  const { gridRemedies, symptomRows } = useMemo(() => {
+    const gr = results.slice(0, 8);
+    const symMap = new Map<string, GridSymptom>();
+    for (const r of gr) {
+      for (const m of r.matches) {
+        if (m.points <= 0) continue;
+        const k = `${m.field}|${m.value}`;
+        if (!symMap.has(k)) symMap.set(k, { field: m.field, value: m.value, key: k });
+      }
+    }
+    return { gridRemedies: gr, symptomRows: Array.from(symMap.values()) };
+  }, [results]);
+
+  function getGrade(remedyResult: ScoringResult, sym: GridSymptom): number {
+    const m = remedyResult.matches.find(x => x.field === sym.field && x.value === sym.value);
+    return m && m.points > 0 ? m.kent_grade : 0;
+  }
 
   // C-06: Antidote check against most recent saved case
   const antidoteWarning = useMemo(() => {
@@ -293,6 +314,7 @@ export default function Results({ navigate, session: authSession }: ResultsProps
       patientName: clinicalSession.patientName,
       patientAge: clinicalSession.patientAge,
       patientGender: clinicalSession.patientGender,
+      parentCaseId: clinicalSession.parentCaseId ?? undefined,
     };
     authStore.addCase(authSession.phone, c);
     setSaving(false);
@@ -347,6 +369,68 @@ export default function Results({ navigate, session: authSession }: ResultsProps
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
+
+      {/* Print-only case report header */}
+      <div className="hidden print:block mb-6 space-y-4">
+        <div className="border-b-2 border-slate-800 pb-3">
+          <h1 className="text-2xl font-bold text-slate-900">JeevanChakra - Repertorization Report</h1>
+          <p className="text-sm text-slate-500 mt-1">Classical homeopathy symptom analysis - NOT a medical diagnosis</p>
+        </div>
+        {(clinicalSession?.patientName || clinicalSession?.patientAge) && (
+          <div className="flex gap-6 text-sm flex-wrap">
+            {clinicalSession.patientName && (
+              <div><span className="font-semibold text-slate-700">Patient:</span> {clinicalSession.patientName}</div>
+            )}
+            {clinicalSession.patientAge && (
+              <div><span className="font-semibold text-slate-700">Age:</span> {clinicalSession.patientAge}</div>
+            )}
+            {clinicalSession.patientGender && (
+              <div><span className="font-semibold text-slate-700">Gender:</span> {clinicalSession.patientGender}</div>
+            )}
+            <div><span className="font-semibold text-slate-700">Date:</span> {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          </div>
+        )}
+        {clinicalSession?.complaint && (
+          <div className="text-sm">
+            <span className="font-semibold text-slate-700">Chief Complaint:</span> {humanize(clinicalSession.complaint)}
+          </div>
+        )}
+        <div>
+          <div className="font-semibold text-slate-700 text-sm mb-2">Symptom Picture</div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {clinicalSession?.thermal_state && <span className="border border-slate-300 rounded px-2 py-0.5">Thermal: {clinicalSession.thermal_state}</span>}
+            {clinicalSession?.causation?.map(c => <span key={c} className="border border-slate-300 rounded px-2 py-0.5">Cause: {humanize(c)}</span>)}
+            {clinicalSession?.worse_from?.map(w => <span key={w} className="border border-slate-300 rounded px-2 py-0.5">Worse: {humanize(w)}</span>)}
+            {clinicalSession?.better_from?.map(b => <span key={b} className="border border-slate-300 rounded px-2 py-0.5">Better: {humanize(b)}</span>)}
+          </div>
+        </div>
+        <div>
+          <div className="font-semibold text-slate-700 text-sm mb-2">Top Remedy Considerations</div>
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-slate-300">
+                <th className="text-left py-1 font-semibold text-slate-700">Rank</th>
+                <th className="text-left py-1 font-semibold text-slate-700">Remedy</th>
+                <th className="text-left py-1 font-semibold text-slate-700">Match</th>
+                <th className="text-left py-1 font-semibold text-slate-700">Tier</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.slice(0, 8).map((r, i) => (
+                <tr key={r.remedy_id} className="border-b border-slate-100">
+                  <td className="py-1 text-slate-500">{i + 1}</td>
+                  <td className="py-1 font-medium">{r.latin_name ?? r.remedy_id}</td>
+                  <td className="py-1">{r.normalised_score}%</td>
+                  <td className="py-1 text-slate-500">{r.tier}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-slate-400 border-t border-slate-200 pt-2">
+          These results represent symptom pattern matches based on classical homeopathic repertorization. This is a decision support tool only and does not constitute medical advice. Consult a qualified homeopathic practitioner before use.
+        </p>
+      </div>
 
       {/* Banner with session context */}
       <div className="jc-section-banner flex items-start gap-4">
@@ -656,6 +740,81 @@ export default function Results({ navigate, session: authSession }: ResultsProps
           >
             Return to intake to confirm these
           </button>
+        </div>
+      )}
+
+      {/* Repertorization Grid */}
+      {results.length > 0 && symptomRows.length > 0 && (
+        <div className="jc-card print:hidden">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-xs font-bold text-jc-purple-400 uppercase tracking-widest">Repertorization Grid</div>
+              <p className="text-xs text-slate-400 mt-0.5">Symptom-remedy match matrix across top results</p>
+            </div>
+            <button
+              className="text-xs font-semibold text-jc-purple-600 border border-jc-purple-200 rounded-lg px-3 py-1.5 hover:bg-jc-purple-50 transition-colors cursor-pointer"
+              onClick={() => setShowGrid(g => !g)}
+            >
+              {showGrid ? 'Hide Grid' : 'Show Grid'}
+            </button>
+          </div>
+          {showGrid && (
+            <div className="overflow-x-auto">
+              <table className="text-xs min-w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left text-slate-400 font-medium py-1.5 pr-3 w-44 min-w-44">Symptom</th>
+                    {gridRemedies.map(r => (
+                      <th key={r.remedy_id} className="text-center font-semibold text-slate-700 py-1.5 px-2 min-w-14">
+                        <div>{r.abbreviation ?? r.remedy_id}</div>
+                        <div className="text-[10px] font-normal text-slate-400">{r.normalised_score}%</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {symptomRows.map((sym, si) => (
+                    <tr key={sym.key} className={si % 2 === 0 ? 'bg-slate-50/60' : ''}>
+                      <td className="py-1.5 pr-3 text-slate-600 truncate max-w-44">
+                        <span className="text-slate-400">{sym.field}: </span>
+                        {humanize(sym.value)}
+                      </td>
+                      {gridRemedies.map(r => {
+                        const g = getGrade(r, sym);
+                        return (
+                          <td key={r.remedy_id} className="text-center py-1.5 px-2">
+                            {g === 3 ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-600 text-white text-[9px] font-bold">3</span>
+                            ) : g === 2 ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-400 text-white text-[9px] font-bold">2</span>
+                            ) : g === 1 ? (
+                              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-300 text-slate-700 text-[9px] font-bold">1</span>
+                            ) : (
+                              <span className="text-slate-200">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex gap-4 mt-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-600 text-white text-[8px] font-bold">3</span>
+                  Bold (grade 3)
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-400 text-white text-[8px] font-bold">2</span>
+                  Italic (grade 2)
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-300 text-slate-700 text-[8px] font-bold">1</span>
+                  Plain (grade 1)
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
