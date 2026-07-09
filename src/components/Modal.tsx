@@ -7,9 +7,10 @@ interface ModalProps {
   title?: string;
   children: React.ReactNode;
   maxWidth?: string;
+  hideInternalClose?: boolean;
 }
 
-export default function Modal({ open, onClose, title, children, maxWidth = 'max-w-2xl' }: ModalProps) {
+export default function Modal({ open, onClose, title, children, maxWidth = 'max-w-2xl', hideInternalClose = false }: ModalProps) {
   return (
     <AnimatePresence>
       {open && (
@@ -43,7 +44,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = 'max-
                 </div>
               )}
               <div className="overflow-y-auto flex-1 relative">
-                {!title && (
+                {!title && !hideInternalClose && (
                   <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer z-10 p-1 rounded-lg hover:bg-slate-100"

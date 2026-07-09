@@ -136,6 +136,7 @@ export interface ClinicalSession {
   patientGender?: 'Male' | 'Female' | 'Other';
   added_rubric_ids?: string[];
   parentCaseId?: string;
+  caseMode?: 'acute' | 'chronic';
 }
 
 // ── Scoring ───────────────────────────────────────────────────────
@@ -196,6 +197,9 @@ export interface SavedCase {
   patientGender?: 'Male' | 'Female' | 'Other';
   parentCaseId?: string;
   followUpResponse?: 'aggravation' | 'amelioration' | 'no_change' | 'partial';
+  reviewDate?: string;
+  prescribed?: string;
+  prescribedPotency?: string;
 }
 
 // ── Intake pool (matches hdss/data/intake.js) ─────────────────────

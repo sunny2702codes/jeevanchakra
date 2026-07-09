@@ -65,7 +65,7 @@ function mergeSessionFields(questions: IntakeQuestion[]): IntakeQuestion[] {
   return result;
 }
 
-function getQuestionsForSession(branch: string | null): IntakeQuestion[] {
+function getQuestionsForSession(branch: string | null, caseMode?: 'acute' | 'chronic'): IntakeQuestion[] {
   const pools = INTAKE_POOLS as { universal: IntakeQuestion[]; pools?: Record<string, IntakeQuestion[]> };
   const universal = (pools.universal as IntakeQuestion[]).filter(q => {
     if (!q.condition) return true;
@@ -75,7 +75,11 @@ function getQuestionsForSession(branch: string | null): IntakeQuestion[] {
     return true;
   });
   const branchPool: IntakeQuestion[] = (branch && pools.pools?.[branch]) ? (pools.pools[branch] as IntakeQuestion[]) : [];
-  return mergeSessionFields([...universal, ...branchPool]);
+  let questions = mergeSessionFields([...universal, ...branchPool]);
+  if (caseMode === 'acute') {
+    questions = questions.filter(q => !CONSTITUTIONAL_FIELDS.has(q.session_field));
+  }
+  return questions;
 }
 
 function generateKeynoteProbes(session: ClinicalSession): IntakeQuestion[] {
@@ -211,8 +215,8 @@ export default function Intake({ navigate }: IntakeProps) {
   const { clinicalSession, setClinicalSession, setClinicalResults, addedRubricIds, session: authSession } = useApp();
 
   const mainQuestions = useMemo(
-    () => getQuestionsForSession(clinicalSession?.branch ?? null),
-    [clinicalSession?.branch],
+    () => getQuestionsForSession(clinicalSession?.branch ?? null, clinicalSession?.caseMode),
+    [clinicalSession?.branch, clinicalSession?.caseMode],
   );
 
   // Index of first constitutional question — gate for optional profile section

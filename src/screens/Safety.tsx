@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, AlertTriangle, AlertCircle, Info, User } from 'lucide-react';
+import { Shield, AlertTriangle, AlertCircle, Info, User, Activity } from 'lucide-react';
 import type { RedFlag, FlagSeverity, ClinicalSession } from '../types';
 import { useApp } from '../App';
 import { patientStore } from '../data/patientStore';
@@ -25,6 +25,7 @@ export default function Safety({ navigate }: SafetyProps) {
   const { clinicalSession, setClinicalSession, currentPatientId, session: authSession } = useApp();
 
   const [declared, setDeclared] = useState(false);
+  const [caseMode, setCaseMode] = useState<'acute' | 'chronic'>('chronic');
   const [patientName, setPatientName]   = useState('');
   const [patientAgeStr, setPatientAgeStr] = useState('');
   const [patientGender, setPatientGender] = useState<'Male' | 'Female' | 'Other'>('Male');
@@ -78,7 +79,7 @@ export default function Safety({ navigate }: SafetyProps) {
     };
 
     if (clinicalSession) {
-      setClinicalSession({ ...clinicalSession, ...patientData });
+      setClinicalSession({ ...clinicalSession, ...patientData, caseMode });
     } else {
       const newSession: ClinicalSession = {
         id: `sess_${Date.now()}`,
@@ -101,6 +102,7 @@ export default function Safety({ navigate }: SafetyProps) {
         concomitants_general: [],
         branch_answers: {},
         collected_keynotes: [],
+        caseMode,
         ...patientData,
       };
       setClinicalSession(newSession);
@@ -208,6 +210,37 @@ export default function Safety({ navigate }: SafetyProps) {
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Assessment mode toggle - Feature 7 */}
+      <div className="jc-card">
+        <div className="flex items-center gap-2 mb-3">
+          <Activity size={16} className="text-jc-purple-600 shrink-0" />
+          <div>
+            <h3 className="font-semibold text-slate-800 text-sm">Assessment Mode</h3>
+            <p className="text-xs text-slate-400">Acute focuses on presenting symptoms; Chronic includes constitutional profile</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {(['Acute', 'Chronic'] as const).map(mode => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setCaseMode(mode === 'Acute' ? 'acute' : 'chronic')}
+              className={[
+                'flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all cursor-pointer text-left px-4',
+                caseMode === (mode === 'Acute' ? 'acute' : 'chronic')
+                  ? 'border-jc-purple-700 bg-jc-purple-50 text-jc-purple-700'
+                  : 'border-slate-200 text-slate-600 hover:border-slate-300',
+              ].join(' ')}
+            >
+              {mode}
+              <div className="text-xs font-normal text-slate-400 mt-0.5">
+                {mode === 'Acute' ? 'Presenting symptoms only' : 'Full constitutional intake'}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 

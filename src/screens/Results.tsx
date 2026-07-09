@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Pill, ChevronDown, ChevronUp, Save, RotateCcw, Loader2, Activity, Thermometer, Clock, Printer } from 'lucide-react';
+import { Pill, ChevronDown, ChevronUp, Save, RotateCcw, Loader2, Activity, Thermometer, Clock, Printer, GitCompare, Copy, Check } from 'lucide-react';
 import { useApp } from '../App';
 import { rank, hasMinimumSet } from '../engines/scoring';
 import { preloadKentGrades } from '../engines/kentRubricGrades';
@@ -154,6 +154,11 @@ export default function Results({ navigate, session: authSession }: ResultsProps
   const [narrowRefined, setNarrowRefined] = useState(false);
   const [narrowNoData, setNarrowNoData] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
+  const [showMiasm, setShowMiasm] = useState(false);
+  const [prescribed, setPrescribed] = useState('');
+  const [prescribedPotency, setPrescribedPotency] = useState('');
+  const [reviewDate, setReviewDate] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (clinicalSession?.added_rubric_ids?.length) {
@@ -170,6 +175,12 @@ export default function Results({ navigate, session: authSession }: ResultsProps
   }, [clinicalSession, clinicalResults, setClinicalResults]);
 
   const differentials = useMemo(() => buildDifferentials(results), [results]);
+
+  useEffect(() => {
+    if (results.length > 0 && !prescribed) {
+      setPrescribed(results[0].latin_name ?? results[0].remedy_id);
+    }
+  }, [results, prescribed]);
 
   const dosage = useMemo(() => {
     if (!clinicalSession || results.length === 0) return null;
@@ -299,6 +310,26 @@ export default function Results({ navigate, session: authSession }: ResultsProps
     setNarrowAnswers({});
   }
 
+  function handleCopySummary() {
+    const lines: string[] = [];
+    if (clinicalSession?.patientName) {
+      lines.push(`Patient: ${clinicalSession.patientName}${clinicalSession.patientAge ? ', Age ' + clinicalSession.patientAge : ''}${clinicalSession.patientGender ? ', ' + clinicalSession.patientGender : ''}`);
+    }
+    lines.push(`Date: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`);
+    if (clinicalSession?.complaint) lines.push(`Complaint: ${humanize(clinicalSession.complaint)}`);
+    lines.push('');
+    lines.push('Top Remedy Matches:');
+    results.slice(0, 3).forEach((r, i) => {
+      lines.push(`${i + 1}. ${r.latin_name ?? r.remedy_id} (${r.normalised_score}% - ${r.tier})`);
+    });
+    lines.push('');
+    lines.push('Classical homeopathic symptom pattern match. Not a medical opinion.');
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }).catch(() => {});
+  }
+
   function handleSave() {
     if (!authSession || !clinicalSession || results.length === 0) return;
     setSaving(true);
@@ -315,6 +346,9 @@ export default function Results({ navigate, session: authSession }: ResultsProps
       patientAge: clinicalSession.patientAge,
       patientGender: clinicalSession.patientGender,
       parentCaseId: clinicalSession.parentCaseId ?? undefined,
+      prescribed: prescribed.trim() || undefined,
+      prescribedPotency: prescribedPotency.trim() || undefined,
+      reviewDate: reviewDate || undefined,
     };
     authStore.addCase(authSession.phone, c);
     setSaving(false);
@@ -818,23 +852,142 @@ export default function Results({ navigate, session: authSession }: ResultsProps
         </div>
       )}
 
-      {/* Session notes input (shown before saving) */}
+      {/* Miasm breakdown panel - Feature 5 */}
+      {results.length > 0 && (
+        <div className="jc-card print:hidden">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-xs font-bold text-jc-purple-400 uppercase tracking-widest">Miasm Distribution</div>
+              <p className="text-xs text-slate-400 mt-0.5">Weighted miasmatic profile of top-10 matches</p>
+            </div>
+            <button
+              className="text-xs font-semibold text-jc-purple-600 border border-jc-purple-200 rounded-lg px-3 py-1.5 hover:bg-jc-purple-50 transition-colors cursor-pointer"
+              onClick={() => setShowMiasm(m => !m)}
+            >
+              {showMiasm ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showMiasm && (() => {
+            const miasmScores: Record<string, number> = { psora: 0, sycosis: 0, syphilis: 0, tubercular: 0 };
+            for (const r of results.slice(0, 10)) {
+              const rem = (REMEDIES as unknown as Remedy[]).find(x => x.id === r.remedy_id);
+              if (!rem?.miasm) continue;
+              for (const m of rem.miasm) {
+                miasmScores[m] = (miasmScores[m] ?? 0) + r.normalised_score;
+              }
+            }
+            const total = Object.values(miasmScores).reduce((a, b) => a + b, 0);
+            const MIASM_COLORS: Record<string, string> = {
+              psora: 'bg-amber-400',
+              sycosis: 'bg-blue-400',
+              syphilis: 'bg-red-400',
+              tubercular: 'bg-purple-400',
+            };
+            const MIASM_LABELS: Record<string, string> = {
+              psora: 'Psoric', sycosis: 'Sycotic', syphilis: 'Syphilitic', tubercular: 'Tubercular',
+            };
+            return (
+              <div className="space-y-2.5">
+                {Object.entries(miasmScores)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([miasm, score]) => {
+                    const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+                    return (
+                      <div key={miasm} className="flex items-center gap-3">
+                        <div className="w-20 text-xs text-slate-600 font-medium shrink-0">{MIASM_LABELS[miasm] ?? miasm}</div>
+                        <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${MIASM_COLORS[miasm] ?? 'bg-slate-400'}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className="text-xs text-slate-400 tabular-nums w-9 text-right shrink-0">{pct}%</div>
+                      </div>
+                    );
+                  })}
+                <p className="text-xs text-slate-400 mt-1">Based on weighted scores of top-10 matching remedies.</p>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Case record: remedy selected, potency, review reminder, notes - Features 2, 9 */}
       {results.length > 0 && authSession && !saved && (
-        <div className="print:hidden space-y-2">
-          <button
-            className="text-xs text-jc-purple-600 font-semibold cursor-pointer hover:underline"
-            onClick={() => setShowNotes(n => !n)}
-          >
-            {showNotes ? 'Hide notes' : 'Add session notes (optional)'}
-          </button>
-          {showNotes && (
-            <textarea
-              className="jc-input resize-none h-20 text-sm w-full"
-              placeholder="Observations, follow-up plan, remedy selected..."
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-            />
-          )}
+        <div className="jc-card print:hidden space-y-4">
+          <div className="text-xs font-bold text-jc-purple-400 uppercase tracking-widest">Case Record</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="jc-label">Remedy Selected</label>
+              <input
+                className="jc-input text-sm"
+                value={prescribed}
+                onChange={e => setPrescribed(e.target.value)}
+                placeholder={results[0]?.latin_name ?? 'Remedy name'}
+              />
+            </div>
+            <div>
+              <label className="jc-label">Potency</label>
+              <input
+                className="jc-input text-sm"
+                value={prescribedPotency}
+                onChange={e => setPrescribedPotency(e.target.value)}
+                placeholder="e.g. 30C, 200C, 1M"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="jc-label">Review Reminder (optional)</label>
+            <div className="flex gap-2 flex-wrap mt-1">
+              {([['2 wks', 14], ['4 wks', 28], ['8 wks', 56], ['3 mo', 90]] as [string, number][]).map(([label, days]) => {
+                const d = new Date();
+                d.setDate(d.getDate() + days);
+                const iso = d.toISOString().split('T')[0];
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setReviewDate(reviewDate === iso ? '' : iso)}
+                    className={[
+                      'text-xs px-3 py-1.5 rounded-lg border font-medium transition-all cursor-pointer',
+                      reviewDate === iso
+                        ? 'border-jc-purple-700 bg-jc-purple-50 text-jc-purple-700'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300',
+                    ].join(' ')}
+                  >
+                    +{label}
+                  </button>
+                );
+              })}
+              {reviewDate && (
+                <button
+                  type="button"
+                  onClick={() => setReviewDate('')}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:border-slate-300 cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {reviewDate && (
+              <p className="text-xs text-jc-purple-600 mt-1.5">
+                Review set for {new Date(reviewDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            )}
+          </div>
+          <div>
+            <button
+              className="text-xs text-jc-purple-600 font-semibold cursor-pointer hover:underline"
+              onClick={() => setShowNotes(n => !n)}
+            >
+              {showNotes ? 'Hide notes' : 'Add session notes (optional)'}
+            </button>
+            {showNotes && (
+              <textarea
+                className="jc-input resize-none h-20 text-sm w-full mt-2"
+                placeholder="Observations, follow-up plan..."
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+              />
+            )}
+          </div>
         </div>
       )}
 
@@ -845,6 +998,25 @@ export default function Results({ navigate, session: authSession }: ResultsProps
             Back to Intake
           </button>
           <div className="flex gap-3 flex-wrap">
+            <button
+              className="jc-btn-ghost flex items-center gap-2 text-sm"
+              onClick={handleCopySummary}
+            >
+              {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+              {copied ? 'Copied' : 'Copy Summary'}
+            </button>
+            {results.length >= 2 && (
+              <button
+                className="jc-btn-ghost flex items-center gap-2 text-sm"
+                onClick={() => {
+                  localStorage.setItem('jc_compare_preload', JSON.stringify({ a: results[0].remedy_id, b: results[1].remedy_id }));
+                  navigate('compare');
+                }}
+              >
+                <GitCompare size={14} />
+                Compare Top 2
+              </button>
+            )}
             <button
               className="jc-btn-ghost flex items-center gap-2 text-sm"
               onClick={() => window.print()}

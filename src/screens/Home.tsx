@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Stethoscope, ClipboardEdit, Search, BookOpen, Calendar, Activity, Lightbulb, GitCompare, Users } from 'lucide-react';
 import { authStore } from '../auth/authStore';
@@ -45,6 +46,7 @@ interface DraftData {
 }
 
 export default function Home({ session, navigate }: HomeProps) {
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const phone = session?.phone ?? '';
   const cases = phone ? authStore.getUserCases(phone) : [];
   const patientCount = phone ? patientStore.getForUser(phone).length : 0;
@@ -73,6 +75,28 @@ export default function Home({ session, navigate }: HomeProps) {
   const topRemedies = Array.from(remedyCount.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
+
+  // Due for review (Feature 9)
+  const today = new Date();
+  const in7Days = new Date(today);
+  in7Days.setDate(today.getDate() + 7);
+  const dueForReview = cases.filter(c => {
+    if (!c.reviewDate) return false;
+    const d = new Date(c.reviewDate);
+    return d >= today && d <= in7Days;
+  }).sort((a, b) => new Date(a.reviewDate!).getTime() - new Date(b.reviewDate!).getTime());
+
+  // Analytics (Feature 6)
+  const complaintCount = new Map<string, number>();
+  for (const c of cases) {
+    if (c.complaint) complaintCount.set(c.complaint, (complaintCount.get(c.complaint) ?? 0) + 1);
+  }
+  const topComplaints = Array.from(complaintCount.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const outcomeCount = { amelioration: 0, aggravation: 0, no_change: 0, partial: 0 };
+  for (const c of cases) {
+    if (c.followUpResponse) outcomeCount[c.followUpResponse]++;
+  }
+  const totalOutcomes = Object.values(outcomeCount).reduce((a, b) => a + b, 0);
 
   const stats = [
     { label: 'Cases This Month', value: monthCases.length, icon: <Calendar size={22} className="text-jc-purple-600" /> },
@@ -127,6 +151,41 @@ export default function Home({ session, navigate }: HomeProps) {
                 Discard
               </button>
             </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Due for review card - Feature 9 */}
+      {dueForReview.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="jc-card border border-amber-200 bg-amber-50"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs font-bold text-amber-700 uppercase tracking-widest">Due for Review</div>
+            <span className="text-xs text-amber-600 bg-amber-100 border border-amber-200 rounded-full px-2 py-0.5">
+              {dueForReview.length} patient{dueForReview.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {dueForReview.slice(0, 3).map(c => (
+              <div
+                key={c.id}
+                className="flex items-center gap-3 cursor-pointer hover:bg-amber-100 rounded-lg px-2 py-1.5 transition-colors"
+                onClick={() => navigate('cases')}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-800 truncate">
+                    {c.patientName ?? humanize(c.complaint)}
+                  </div>
+                  <div className="text-xs text-amber-700">
+                    Review: {new Date(c.reviewDate!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  </div>
+                </div>
+                {c.topRemedy && <span className="text-xs text-slate-500 shrink-0 font-mono">{c.topRemedy}</span>}
+              </div>
+            ))}
           </div>
         </motion.div>
       )}
@@ -211,6 +270,62 @@ export default function Home({ session, navigate }: HomeProps) {
               );
             })}
           </div>
+        </motion.div>
+      )}
+
+      {/* Practice analytics - Feature 6 */}
+      {cases.length >= 3 && (
+        <motion.div custom={6} variants={cardAnim} initial="initial" animate="animate" className="jc-card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-800">Practice Analytics</h3>
+            <button
+              className="text-xs text-jc-purple-600 font-semibold hover:underline cursor-pointer"
+              onClick={() => setShowAnalytics(a => !a)}
+            >
+              {showAnalytics ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showAnalytics && (
+            <div className="space-y-5">
+              {topComplaints.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Complaint Distribution</div>
+                  <div className="space-y-2">
+                    {topComplaints.map(([complaint, count]) => {
+                      const pct = Math.round((count / topComplaints[0][1]) * 100);
+                      return (
+                        <div key={complaint} className="flex items-center gap-3">
+                          <div className="w-28 text-xs text-slate-600 truncate shrink-0">{humanize(complaint)}</div>
+                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-jc-purple-400 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="text-xs text-slate-400 tabular-nums w-5 text-right shrink-0">{count}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {totalOutcomes > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Follow-up Outcomes</div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {([
+                      ['amelioration', 'Improved', 'text-emerald-700 bg-emerald-50 border-emerald-200'],
+                      ['partial', 'Partial', 'text-blue-700 bg-blue-50 border-blue-200'],
+                      ['no_change', 'No change', 'text-slate-600 bg-slate-50 border-slate-200'],
+                      ['aggravation', 'Aggravated', 'text-orange-700 bg-orange-50 border-orange-200'],
+                    ] as const).map(([key, label, cls]) => (
+                      <div key={key} className={`border rounded-xl px-3 py-2 text-center ${cls}`}>
+                        <div className="text-lg font-bold">{outcomeCount[key]}</div>
+                        <div className="text-xs font-medium">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </motion.div>
       )}
 
